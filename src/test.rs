@@ -1,6 +1,7 @@
 use std::{
     sync::{
         Arc,
+        RwLock,
     },
 };
 
@@ -17,7 +18,7 @@ use crate::{
 #[allow(dead_code, unused_variables)]
 pub fn test_endpoints(
     client: Arc<Client>,
-    token: Arc<String>,
+    token: Arc<RwLock<String>>,
 ) {
     let album_data = album::get_album(
         client.clone(),
@@ -118,7 +119,7 @@ pub fn test_endpoints(
 #[allow(dead_code)]
 pub fn test_searches(
     client: Arc<Client>,
-    token: Arc<String>,
+    token: Arc<RwLock<String>>,
 ) {
     let album_results = album::search_albums(client.clone(), token.clone(), "Twin Fantasy")
         .expect("Error in album::search_albums");

@@ -1,6 +1,7 @@
 use std::{
     sync::{
         Arc,
+        RwLock,
     },
 };
 
@@ -25,7 +26,7 @@ use crate::{
 
 pub fn get_track_analysis(
     client: Arc<Client>,
-    token: Arc<String>,
+    token: Arc<RwLock<String>>,
     track_id: &str,
 ) -> Result<AudioAnalysis, String> {
     Ok(
@@ -39,7 +40,7 @@ pub fn get_track_analysis(
 
 pub fn get_track_features(
     client: Arc<Client>,
-    token: Arc<String>,
+    token: Arc<RwLock<String>>,
     track_id: &str,
 ) -> Result<AudioFeatures, String> {
     Ok(
@@ -53,7 +54,7 @@ pub fn get_track_features(
 
 pub fn get_tracks_features(
     client: Arc<Client>,
-    token: Arc<String>,
+    token: Arc<RwLock<String>>,
     track_ids: Vec<&str>,
 ) -> Result<Vec<AudioFeatures>, String> {
     Ok(
@@ -77,7 +78,7 @@ pub fn get_tracks_features(
 
 pub fn get_tracks(
     client: Arc<Client>,
-    token: Arc<String>,
+    token: Arc<RwLock<String>>,
     track_ids: Vec<&str>,
 ) -> Result<Vec<TrackFull>, String> {
     Ok(
@@ -101,7 +102,7 @@ pub fn get_tracks(
 
 pub fn get_track(
     client: Arc<Client>,
-    token: Arc<String>,
+    token: Arc<RwLock<String>>,
     track_id: &str,
 ) -> Result<TrackFull, String> {
     Ok(
@@ -115,7 +116,7 @@ pub fn get_track(
 
 pub fn search_tracks(
     client: Arc<Client>,
-    token: Arc<String>,
+    token: Arc<RwLock<String>>,
     query: &str,
 ) -> Result<Paging<TrackFull>, String> {
     Ok(

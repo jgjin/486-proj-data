@@ -1,6 +1,7 @@
 use std::{
     sync::{
         Arc,
+        RwLock,
     },
 };
 
@@ -29,7 +30,7 @@ use crate::{
 
 pub fn get_artist(
     client: Arc<Client>,
-    token: Arc<String>,
+    token: Arc<RwLock<String>>,
     artist_id: &str,
 ) -> Result<ArtistFull, String> {
     Ok(
@@ -43,7 +44,7 @@ pub fn get_artist(
 
 pub fn get_artist_albums(
     client: Arc<Client>,
-    token: Arc<String>,
+    token: Arc<RwLock<String>>,
     artist_id: &str,
 ) -> Result<Paging<AlbumSimple>, String> {
     Ok(
@@ -57,7 +58,7 @@ pub fn get_artist_albums(
 
 pub fn get_artist_top_tracks(
     client: Arc<Client>,
-    token: Arc<String>,
+    token: Arc<RwLock<String>>,
     artist_id: &str,
 ) -> Result<Vec<TrackFull>, String> {
     Ok(
@@ -78,7 +79,7 @@ pub fn get_artist_top_tracks(
 
 pub fn get_artist_related_artists(
     client: Arc<Client>,
-    token: Arc<String>,
+    token: Arc<RwLock<String>>,
     artist_id: &str,
 ) -> Result<Vec<ArtistFull>, String> {
     Ok(
@@ -99,7 +100,7 @@ pub fn get_artist_related_artists(
 
 pub fn get_artists(
     client: Arc<Client>,
-    token: Arc<String>,
+    token: Arc<RwLock<String>>,
     artist_ids: Vec<&str>,
 ) -> Result<Vec<ArtistFull>, String> {
     Ok(
@@ -123,7 +124,7 @@ pub fn get_artists(
 
 pub fn search_artists(
     client: Arc<Client>,
-    token: Arc<String>,
+    token: Arc<RwLock<String>>,
     query: &str,
 ) -> Result<Paging<ArtistFull>, String> {
     Ok(

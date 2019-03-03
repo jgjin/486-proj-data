@@ -23,6 +23,7 @@ mod utils;
 use std::{
     sync::{
         Arc,
+        RwLock,
     },
 };
 
@@ -35,11 +36,11 @@ fn main(
 ) {
     let client = Arc::new(Client::new());
 
-    let token = Arc::new(
-        token::retrieve_access_token(&client)
+    let token = Arc::new(RwLock::new(
+        token::retrieve_access_token(client.clone())
             .expect("Error in access token")
             .access_token
-    );
+    ));
 
     let seed_artists: Vec<String> = io::lines_from_file("seed_artists.txt")
         .expect("Error in reading file")
@@ -51,7 +52,7 @@ fn main(
 
 
     let (sender, receiver) = channel::unbounded();
-    let limit = 200000;
+    let limit = 100000;
 
     artist_crawl::artist_crawl(
         seed_artists.iter().map(|artist_id| &artist_id[..]).collect(),

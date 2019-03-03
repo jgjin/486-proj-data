@@ -1,6 +1,7 @@
 use std::{
     sync::{
         Arc,
+        RwLock,
     },
 };
 
@@ -27,7 +28,7 @@ use crate::{
 
 pub fn get_album(
     client: Arc<Client>,
-    token: Arc<String>,
+    token: Arc<RwLock<String>>,
     album_id: &str,
 ) -> Result<AlbumFull, String> {
     Ok(
@@ -41,7 +42,7 @@ pub fn get_album(
 
 pub fn get_album_tracks(
     client: Arc<Client>,
-    token: Arc<String>,
+    token: Arc<RwLock<String>>,
     album_id: &str,
 ) -> Result<Paging<TrackSimple>, String> {
     Ok(
@@ -55,7 +56,7 @@ pub fn get_album_tracks(
 
 pub fn get_albums(
     client: Arc<Client>,
-    token: Arc<String>,
+    token: Arc<RwLock<String>>,
     album_ids: Vec<&str>,
 ) -> Result<Vec<AlbumFull>, String> {
     Ok(
@@ -79,7 +80,7 @@ pub fn get_albums(
 
 pub fn search_albums(
     client: Arc<Client>,
-    token: Arc<String>,
+    token: Arc<RwLock<String>>,
     query: &str,
 ) -> Result<Paging<AlbumSimple>, String> {
     Ok(

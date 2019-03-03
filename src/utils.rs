@@ -1,6 +1,7 @@
 use std::{
     sync::{
         Arc,
+        RwLock,
     },
     thread::{
         sleep,
@@ -22,11 +23,17 @@ use serde_json::{
     Value,
 };
 
+use crate::{
+    token::{
+        retrieve_access_token,
+    },
+};
+
 pub fn search(
     query: &str,
     type_: &str,
     client: Arc<Client>,
-    token: Arc<String>,
+    token: Arc<RwLock<String>>,
 ) -> Result<Response, String> {
     get_with_retry(
         &format!(
@@ -42,11 +49,13 @@ pub fn search(
 pub fn get_with_retry(
     url: &str,
     client: Arc<Client>,
-    token: Arc<String>,
+    token: Arc<RwLock<String>>,
 ) -> Result<Response, String> {
-    let response = client.get(url).bearer_auth(token.clone()).send().map_err(|err| {
-        format!("Error for {}: {}", url, err)
-    })?;
+    let response = client.get(url)
+        .bearer_auth(token.read().expect("token RwLock poisoned"))
+        .send().map_err(|err| {
+            format!("Error for {}: {}", url, err)
+        })?;
     match response.status() {
         StatusCode::OK => Ok(response),
         StatusCode::TOO_MANY_REQUESTS => {
@@ -62,7 +71,14 @@ pub fn get_with_retry(
                 None => Err("No retry-after header".to_string()),
             }
         },
-        _ => Err("Unexpected error code".to_string()),
+        StatusCode::UNAUTHORIZED => {
+            *(token.write().expect("token RwLock poisoned")) = retrieve_access_token(client.clone())
+                .expect("Error in access token")
+                .access_token;
+                
+            get_with_retry(url, client, token)
+        },
+        status_code => Err(format!("Unexpected error code: {}", status_code)),
     }
 }
 

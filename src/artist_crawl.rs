@@ -1,6 +1,7 @@
 use std::{
     sync::{
         Arc,
+        RwLock,
     },
     thread,
     time::{
@@ -36,7 +37,7 @@ fn crawl_related_artists_thread(
     crawled: Arc<CHashMap<String, ()>>,
     limit: usize,
     client: Arc<Client>,
-    token: Arc<String>,
+    token: Arc<RwLock<String>>,
     sender: Sender<ArtistCsv>,
 ) -> thread::Result<()> {
     thread::spawn(move || {
@@ -79,7 +80,7 @@ pub fn artist_crawl(
     seeds: Vec<&str>,
     limit: usize,
     client: Arc<Client>,
-    token: Arc<String>,
+    token: Arc<RwLock<String>>,
     sender: Sender<ArtistCsv>,
 ) -> CHashMap<String, ()> {
     let queue = Arc::new(SegQueue::new());
