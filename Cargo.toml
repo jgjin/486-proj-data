@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 chashmap = "2.2.2"
-crossbeam-channel = "0.2"
+crossbeam-channel = "0.3"
 crossbeam-queue = "0.1"
 csv = "1.0"
 num_cpus = "1.0"
