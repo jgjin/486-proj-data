@@ -42,7 +42,7 @@ pub fn read_csv_into_sender<D: DeserializeOwned>(
     reader.deserialize::<D>().map(|record| {
         let record = record?;
         sender.send(record).unwrap_or_else(|err| {
-            println!(
+            error!(
                 "Error sending {} data through io::read_csv_into_sender sender: {}",
                 file_name,
                 err,

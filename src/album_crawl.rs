@@ -39,7 +39,7 @@ fn crawl_artists_album_thread(
     client: Arc<Client>,
     token: Arc<RwLock<String>>,
     sender: Sender<AlbumCsv>,
-) -> thread::Result<()> {
+) -> thread::JoinHandle<()> {
     thread::spawn(move || {
         while let Some(artist_csv) = artists_crawled.recv().ok() {
             let (mut items, mut next) = get_artist_albums(
@@ -49,7 +49,7 @@ fn crawl_artists_album_thread(
             ).map(|paging| {
                 (Some(paging.items), paging.next)
             }).unwrap_or_else(|err| {
-                println!(
+                error!(
                     "Error in artist::get_artist_albums for {}: {}",
                     artist_csv.id,
                     err,
@@ -65,7 +65,7 @@ fn crawl_artists_album_thread(
                         message: err.to_string(),
                     }.into())
                 }).collect::<Result<(), Box<dyn Error>>>().unwrap_or_else(|err| {
-                    println!(
+                    error!(
                         "Error sending {} data through album_crawl::crawl_artists_album_thread sender: {}",
                         artist_csv.id,
                         err
@@ -77,7 +77,7 @@ fn crawl_artists_album_thread(
                         .map(|paging| {
                             (Some(paging.items), paging.next)
                         }).unwrap_or_else(|err| {
-                            println!(
+                            error!(
                                 "Error getting next paging with URL {}: {}",
                                 next_paging_url,
                                 err,
@@ -90,7 +90,7 @@ fn crawl_artists_album_thread(
                 next = next_new;
             }
         }
-    }).join()
+    })
 }
 
 pub fn album_crawl(
@@ -100,14 +100,18 @@ pub fn album_crawl(
     sender: Sender<AlbumCsv>,
 ) -> thread::Result<()> {
     let num_threads = num_cpus::get();
-    println!("Using {} threads", num_threads);
+    info!("Using {} threads", num_threads);
 
-    (0..num_threads).map(|_| {
+    let threads: Vec<thread::JoinHandle<()>> = (0..num_threads).map(|_| {
         crawl_artists_album_thread(
             artists_crawled.clone(),
             client.clone(),
             token.clone(),
             sender.clone(),
         )
+    }).collect();
+
+    threads.into_iter().map(|join_handle| {
+        join_handle.join()
     }).collect()
 }

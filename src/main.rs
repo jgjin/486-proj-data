@@ -2,7 +2,9 @@ extern crate chashmap;
 extern crate crossbeam_channel;
 extern crate crossbeam_queue;
 extern crate csv;
+#[macro_use] extern crate log;
 extern crate num_cpus;
+extern crate pretty_env_logger;
 extern crate reqwest;
 extern crate serde;
 extern crate serde_json;
@@ -36,6 +38,8 @@ use reqwest::{
 
 fn main(
 ) {
+    pretty_env_logger::init();
+    
     let client = Arc::new(Client::new());
 
     let token = Arc::new(RwLock::new(
@@ -46,17 +50,19 @@ fn main(
 
     let (artist_sender, artist_receiver) = channel::unbounded();
     let (album_sender, album_receiver) = channel::unbounded();
-    
 
-    let reader_thread = thread::spawn(move || {
-        io::read_csv_into_sender::<artist_types::ArtistCsv>(
-            artist_sender,
-            "artists_crawled.csv",
-        ).unwrap_or_else(|err| {
-            println!("Error in reading csv: {}", err)
-        });
-        // println!("Finished reading");
-    });
+    io::lines_from_file("artists.txt")
+        .expect("Error reading lines")
+        .into_iter().map(|id| {
+            artist_sender.send(artist_types::ArtistCsv {
+                href: "".to_string(),
+                id: id.clone(),
+                name: "".to_string(),
+                uri: "".to_string(),
+            }).unwrap_or_else(|err| {
+                error!("Error sending {}: {}", id, err);
+            });
+        }).last();
 
     let crawler_thread = thread::spawn(move || {
         album_crawl::album_crawl(
@@ -65,28 +71,24 @@ fn main(
             token,
             album_sender
         ).unwrap_or_else(|err| {
-            println!("Error in crawling albums: {:?}", err)
+            error!("Error in crawling albums: {:?}", err)
         });
-        // println!("Finished crawling");
+        // info!("Finished crawling");
     });
 
     let writer_thread = thread::spawn(move || {
         io::write_csv_through_receiver(album_receiver, "albums_crawled.csv")
             .unwrap_or_else(|err| {
-                println!("Error in writing csv: {}", err)
+                error!("Error in writing csv: {}", err)
             });
-        // println!("Finished writing");
-    });
-
-    reader_thread.join().unwrap_or_else(|err| {
-        println!("Error in csv reader thread: {:?}", err);
+        // info!("Finished writing");
     });
 
     crawler_thread.join().unwrap_or_else(|err| {
-        println!("Error in album crawler thread: {:?}", err);
+        error!("Error in album crawler thread: {:?}", err);
     });
 
     writer_thread.join().unwrap_or_else(|err| {
-        println!("Error in csv writer thread: {:?}", err);
+        error!("Error in csv writer thread: {:?}", err);
     });
 }

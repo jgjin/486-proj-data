@@ -88,6 +88,7 @@ pub fn get_with_retry(
     client: Arc<Client>,
     token: Arc<RwLock<String>>,
 ) -> Result<Response, Box<dyn Error>> {
+    info!("Getting URL {}", url);
     let response = client.get(url)
         .bearer_auth(token.read().expect("token RwLock poisoned"))
         .send().map_err(|err| {
@@ -100,9 +101,11 @@ pub fn get_with_retry(
                 Some(header_value) => {
                     let duration = header_value.to_str()
                         .expect("Unexpected format in retry-after header");
+                    info!("Sleeping {} seconds", duration);
                     sleep(Duration::from_secs(
                         duration.parse::<u64>().expect("Unexpected format in retry-after header")
                     ));
+
                     get_with_retry(url, client, token)
                 },
                 None => Err(Box::new(SimpleError {
@@ -111,6 +114,7 @@ pub fn get_with_retry(
             }
         },
         StatusCode::UNAUTHORIZED => {
+            info!("Refreshing token");
             *(token.write().expect("token RwLock poisoned")) = retrieve_access_token(client.clone())
                 .expect("Error in access token")
                 .access_token;
@@ -154,6 +158,5 @@ pub fn print_full_response(
         println!("{:?}", json);
     }).unwrap_or_else(|_| {
         println!("response not json");
-        ()
     });
 }

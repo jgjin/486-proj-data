@@ -39,7 +39,7 @@ fn crawl_related_artists_thread(
     client: Arc<Client>,
     token: Arc<RwLock<String>>,
     sender: Sender<ArtistCsv>,
-) -> thread::Result<()> {
+) -> thread::JoinHandle<()> {
     thread::spawn(move || {
         let mut sleep_period = 1;
 
@@ -50,7 +50,7 @@ fn crawl_related_artists_thread(
                     token.clone(),
                     &query_id[..],
                 ).unwrap_or_else(|err| {
-                    println!(
+                    error!(
                         "Error in artist::get_artist_related_artists for {}: {}",
                         query_id,
                         err,
@@ -61,7 +61,7 @@ fn crawl_related_artists_thread(
                 }).map(|artist_full| {
                     let artist_id = artist_full.id.clone();
                     sender.send(ArtistCsv::from(artist_full)).unwrap_or_else(|err| {
-                        println!(
+                        error!(
                             "Error sending {} through artist_crawl::artist_crawl sender: {}",
                             artist_id,
                             err,
@@ -79,7 +79,7 @@ fn crawl_related_artists_thread(
                 sleep_period *= 2;
             })
         }
-    }).join()
+    })
 }
 
 #[allow(dead_code)]
@@ -97,9 +97,9 @@ pub fn artist_crawl(
     let crawled = Arc::new(CHashMap::new());
     
     let num_threads = num_cpus::get();
-    println!("Using {} threads", num_threads);
+    info!("Using {} threads", num_threads);
 
-    let result: thread::Result<()> = (0..num_threads).map(|_| {
+    let threads: Vec<thread::JoinHandle<()>> = (0..num_threads).map(|_| {
         crawl_related_artists_thread(
             queue.clone(),
             crawled.clone(),
@@ -110,8 +110,12 @@ pub fn artist_crawl(
         )
     }).collect();
 
+    let result: thread::Result<()> = threads.into_iter().map(|join_handle| {
+        join_handle.join()
+    }).collect();
+    
     result.unwrap_or_else(|err| {
-        println!("Error in artist_crawl::artist_crawl: {:?}", err);
+        error!("Error in artist_crawl::artist_crawl: {:?}", err);
     });
 
     Arc::try_unwrap(crawled).expect("Error in unwrapping Arc")
