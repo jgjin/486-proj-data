@@ -60,7 +60,13 @@ fn crawl_related_artists_thread(
                     !crawled.contains_key(&artist_full.id)
                 }).map(|artist_full| {
                     let artist_id = artist_full.id.clone();
-                    sender.send(ArtistCsv::from(artist_full));
+                    sender.send(ArtistCsv::from(artist_full)).unwrap_or_else(|err| {
+                        println!(
+                            "Error sending {} through artist_crawl::artist_crawl sender: {}",
+                            artist_id,
+                            err,
+                        );
+                    });
                     crawled.insert(artist_id.clone(), ());
                     queue.push(artist_id);
                 }).last();
@@ -76,6 +82,7 @@ fn crawl_related_artists_thread(
     }).join()
 }
 
+#[allow(dead_code)]
 pub fn artist_crawl(
     seeds: Vec<&str>,
     limit: usize,

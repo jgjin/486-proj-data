@@ -61,3 +61,31 @@ with_album_core_fields!(pub struct AlbumFull {
     pub popularity: i32,
     pub tracks: Paging<TrackSimple>,
 });
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct AlbumCsv {
+    pub origin_artist: String,
+    pub album_group: Option<String>,
+    pub album_type: String,
+    pub href: String,
+    pub id: String,
+    pub name: String,
+    pub uri: String,
+}
+
+impl AlbumCsv {
+    pub fn extract_from(
+        album_simple: AlbumSimple,
+        origin_artist: String,
+    ) -> Self {
+        Self {
+            origin_artist: origin_artist,
+            album_group: album_simple.album_group,
+            album_type: album_simple.album_type,
+            href: album_simple.href,
+            id: album_simple.id,
+            name: album_simple.name,
+            uri: album_simple.uri,
+        }
+    }
+}

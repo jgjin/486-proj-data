@@ -53,7 +53,9 @@ pub struct ArtistCsv {
 }
 
 impl From<ArtistFull> for ArtistCsv {
-    fn from(artist_full: ArtistFull) -> Self {
+    fn from(
+        artist_full: ArtistFull,
+    ) -> Self {
         Self {
             href: artist_full.href,
             id: artist_full.id,
