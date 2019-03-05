@@ -48,6 +48,8 @@ fn main(
             .access_token
     ));
 
+    info!("Using token {}", token.read().expect("token RwLock poisoned"));
+
     let (artist_sender, artist_receiver) = channel::unbounded();
     let (album_sender, album_receiver) = channel::unbounded();
 

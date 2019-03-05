@@ -118,6 +118,7 @@ pub fn get_with_retry(
             *(token.write().expect("token RwLock poisoned")) = retrieve_access_token(client.clone())
                 .expect("Error in access token")
                 .access_token;
+            info!("Using token {}", token.read().expect("token RwLock poisoned"));
                 
             get_with_retry(url, client, token)
         },

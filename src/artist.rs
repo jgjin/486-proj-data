@@ -52,7 +52,7 @@ pub fn get_artist_albums(
 ) -> Result<Paging<AlbumSimple>, Box<dyn Error>> {
     Ok(
         get_with_retry(
-            &format!("https://api.spotify.com/v1/artists/{}/albums/", artist_id)[..],
+            &format!("https://api.spotify.com/v1/artists/{}/albums/?include_groups=album,single,compilation", artist_id)[..],
             client,
             token,
         )?.json()?
