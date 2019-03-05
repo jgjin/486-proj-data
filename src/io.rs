@@ -10,14 +10,20 @@ use std::{
 
 use crossbeam_channel::{
     Receiver,
+    Sender,
 };
 use csv::{
+    Reader,
     Writer,
 };
 use serde::{
     Serialize,
+    de::{
+        DeserializeOwned,
+    },
 };
 
+#[allow(dead_code)]
 pub fn lines_from_file(
     file_name: &str,
 ) -> std::io::Result<Vec<String>> {
@@ -28,16 +34,33 @@ pub fn lines_from_file(
     )
 }
 
+pub fn read_csv_into_sender<D: DeserializeOwned>(
+    sender: Sender<D>,
+    file_name: &str,
+) -> csv::Result<()> {
+    let mut reader = Reader::from_path(file_name)?;
+    reader.deserialize::<D>().map(|record| {
+        let record = record?;
+        sender.send(record).unwrap_or_else(|err| {
+            println!(
+                "Error sending {} data through io::read_csv_into_sender sender: {}",
+                file_name,
+                err,
+            );
+        });
+        Ok(())
+    }).collect()
+}
+
 pub fn write_csv_through_receiver<S: Serialize>(
     receiver: Receiver<S>,
-    limit: usize,
     file_name: &str,
 ) -> csv::Result<()> {
     let mut writer = Writer::from_path(file_name)?;
 
-    (0..limit).map(|_| {
-        receiver.recv().map(|record| {
-            writer.serialize(record)
-        }).unwrap_or(Ok(())) // None implies channel is closed and empty, so we handle as Ok
-    }).collect()
+    while let Some(record) = receiver.recv().ok() {
+        writer.serialize(record)?
+    }
+
+    Ok(())
 }
