@@ -1,4 +1,7 @@
 use std::{
+    error::{
+        Error,
+    },
     sync::{
         Arc,
         RwLock,
@@ -28,13 +31,13 @@ pub fn get_track_analysis(
     client: Arc<Client>,
     token: Arc<RwLock<String>>,
     track_id: &str,
-) -> Result<AudioAnalysis, String> {
+) -> Result<AudioAnalysis, Box<dyn Error>> {
     Ok(
         get_with_retry(
             &format!("https://api.spotify.com/v1/audio-analysis/{}/", track_id)[..],
             client,
             token,
-        )?.json().expect("Error parsing JSON in track::get_track_analysis")
+        )?.json()?
     )
 }
 
@@ -42,13 +45,13 @@ pub fn get_track_features(
     client: Arc<Client>,
     token: Arc<RwLock<String>>,
     track_id: &str,
-) -> Result<AudioFeatures, String> {
+) -> Result<AudioFeatures, Box<dyn Error>> {
     Ok(
         get_with_retry(
             &format!("https://api.spotify.com/v1/audio-features/{}/", track_id)[..],
             client,
             token,
-        )?.json().expect("Error parsing JSON in track::get_track_features")
+        )?.json()?
     )
 }
 
@@ -56,7 +59,7 @@ pub fn get_tracks_features(
     client: Arc<Client>,
     token: Arc<RwLock<String>>,
     track_ids: Vec<&str>,
-) -> Result<Vec<AudioFeatures>, String> {
+) -> Result<Vec<AudioFeatures>, Box<dyn Error>> {
     Ok(
         get_with_retry(
             &format!(
@@ -80,7 +83,7 @@ pub fn get_tracks(
     client: Arc<Client>,
     token: Arc<RwLock<String>>,
     track_ids: Vec<&str>,
-) -> Result<Vec<TrackFull>, String> {
+) -> Result<Vec<TrackFull>, Box<dyn Error>> {
     Ok(
         get_with_retry(
             &format!(
@@ -104,13 +107,13 @@ pub fn get_track(
     client: Arc<Client>,
     token: Arc<RwLock<String>>,
     track_id: &str,
-) -> Result<TrackFull, String> {
+) -> Result<TrackFull, Box<dyn Error>> {
     Ok(
         get_with_retry(
             &format!("https://api.spotify.com/v1/tracks/{}/", track_id)[..],
             client,
             token,
-        )?.json().expect("Error parsing JSON in track::get_track")
+        )?.json()?
     )
 }
 
@@ -118,7 +121,7 @@ pub fn search_tracks(
     client: Arc<Client>,
     token: Arc<RwLock<String>>,
     query: &str,
-) -> Result<Paging<TrackFull>, String> {
+) -> Result<Paging<TrackFull>, Box<dyn Error>> {
     Ok(
         serde_json::from_value(
             search(query, "track", client, token)?

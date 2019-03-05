@@ -1,4 +1,7 @@
 use std::{
+    error::{
+        Error,
+    },
     sync::{
         Arc,
         RwLock,
@@ -30,13 +33,13 @@ pub fn get_album(
     client: Arc<Client>,
     token: Arc<RwLock<String>>,
     album_id: &str,
-) -> Result<AlbumFull, String> {
+) -> Result<AlbumFull, Box<dyn Error>> {
     Ok(
         get_with_retry(
             &format!("https://api.spotify.com/v1/albums/{}/", album_id)[..],
             client,
             token,
-        )?.json().expect("Error parsing JSON in album::get_album")
+        )?.json()?
     )
 }
 
@@ -44,13 +47,13 @@ pub fn get_album_tracks(
     client: Arc<Client>,
     token: Arc<RwLock<String>>,
     album_id: &str,
-) -> Result<Paging<TrackSimple>, String> {
+) -> Result<Paging<TrackSimple>, Box<dyn Error>> {
     Ok(
         get_with_retry(
             &format!("https://api.spotify.com/v1/albums/{}/tracks/", album_id)[..],
             client,
             token,
-        )?.json().expect("Error parsing JSON in album::get_album_tracks")
+        )?.json()?
     )
 }
 
@@ -58,7 +61,7 @@ pub fn get_albums(
     client: Arc<Client>,
     token: Arc<RwLock<String>>,
     album_ids: Vec<&str>,
-) -> Result<Vec<AlbumFull>, String> {
+) -> Result<Vec<AlbumFull>, Box<dyn Error>> {
     Ok(
         get_with_retry(
             &format!(
@@ -82,7 +85,7 @@ pub fn search_albums(
     client: Arc<Client>,
     token: Arc<RwLock<String>>,
     query: &str,
-) -> Result<Paging<AlbumSimple>, String> {
+) -> Result<Paging<AlbumSimple>, Box<dyn Error>> {
     Ok(
         serde_json::from_value(
             search(query, "album", client, token)?

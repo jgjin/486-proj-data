@@ -1,4 +1,7 @@
 use std::{
+    error::{
+        Error,
+    },
     sync::{
         Arc,
         RwLock,
@@ -32,13 +35,13 @@ pub fn get_artist(
     client: Arc<Client>,
     token: Arc<RwLock<String>>,
     artist_id: &str,
-) -> Result<ArtistFull, String> {
+) -> Result<ArtistFull, Box<dyn Error>> {
     Ok(
         get_with_retry(
             &format!("https://api.spotify.com/v1/artists/{}/", artist_id)[..],
             client,
             token,
-        )?.json().expect("Error parsing JSON in artist::get_artist")
+        )?.json()?
     )
 }
 
@@ -46,13 +49,13 @@ pub fn get_artist_albums(
     client: Arc<Client>,
     token: Arc<RwLock<String>>,
     artist_id: &str,
-) -> Result<Paging<AlbumSimple>, String> {
+) -> Result<Paging<AlbumSimple>, Box<dyn Error>> {
     Ok(
         get_with_retry(
             &format!("https://api.spotify.com/v1/artists/{}/albums/", artist_id)[..],
             client,
             token,
-        )?.json().expect("Error parsing JSON in artist::get_artist_albums")
+        )?.json()?
     )
 }
 
@@ -60,7 +63,7 @@ pub fn get_artist_top_tracks(
     client: Arc<Client>,
     token: Arc<RwLock<String>>,
     artist_id: &str,
-) -> Result<Vec<TrackFull>, String> {
+) -> Result<Vec<TrackFull>, Box<dyn Error>> {
     Ok(
         get_with_retry(
             &format!("https://api.spotify.com/v1/artists/{}/top-tracks/?country=US", artist_id)[..],
@@ -81,7 +84,7 @@ pub fn get_artist_related_artists(
     client: Arc<Client>,
     token: Arc<RwLock<String>>,
     artist_id: &str,
-) -> Result<Vec<ArtistFull>, String> {
+) -> Result<Vec<ArtistFull>, Box<dyn Error>> {
     Ok(
         get_with_retry(
             &format!("https://api.spotify.com/v1/artists/{}/related-artists/", artist_id)[..],
@@ -102,7 +105,7 @@ pub fn get_artists(
     client: Arc<Client>,
     token: Arc<RwLock<String>>,
     artist_ids: Vec<&str>,
-) -> Result<Vec<ArtistFull>, String> {
+) -> Result<Vec<ArtistFull>, Box<dyn Error>> {
     Ok(
         get_with_retry(
             &format!(
@@ -126,7 +129,7 @@ pub fn search_artists(
     client: Arc<Client>,
     token: Arc<RwLock<String>>,
     query: &str,
-) -> Result<Paging<ArtistFull>, String> {
+) -> Result<Paging<ArtistFull>, Box<dyn Error>> {
     Ok(
         serde_json::from_value(
             search(query, "artist", client, token)?
