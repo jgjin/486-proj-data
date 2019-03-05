@@ -1,4 +1,12 @@
 use std::{
+    fmt::{
+        Display,
+        Formatter,
+        self,
+    },
+    error::{
+        Error,
+    },
     sync::{
         Arc,
         RwLock,
@@ -19,6 +27,11 @@ use reqwest::{
         RETRY_AFTER,
     },
 };
+use serde::{
+    de::{
+        DeserializeOwned,
+    },
+};
 use serde_json::{
     Value,
 };
@@ -27,14 +40,38 @@ use crate::{
     token::{
         retrieve_access_token,
     },
+    common_types::{
+        Paging,
+    },
 };
+
+#[derive(Debug, Clone)]
+pub struct SimpleError {
+    pub message: String,
+}
+
+impl Display for SimpleError {
+    fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
+        write!(formatter, "{}", self.message)
+    }
+}
+
+impl Error for SimpleError {
+    fn description(&self) -> &str {
+        &self.message[..]
+    }
+
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
+    }
+}
 
 pub fn search(
     query: &str,
     type_: &str,
     client: Arc<Client>,
     token: Arc<RwLock<String>>,
-) -> Result<Response, String> {
+) -> Result<Response, Box<dyn Error>> {
     get_with_retry(
         &format!(
             "https://api.spotify.com/v1/search/?q={}&type={}",
@@ -50,7 +87,7 @@ pub fn get_with_retry(
     url: &str,
     client: Arc<Client>,
     token: Arc<RwLock<String>>,
-) -> Result<Response, String> {
+) -> Result<Response, Box<dyn Error>> {
     let response = client.get(url)
         .bearer_auth(token.read().expect("token RwLock poisoned"))
         .send().map_err(|err| {
@@ -68,7 +105,9 @@ pub fn get_with_retry(
                     ));
                     get_with_retry(url, client, token)
                 },
-                None => Err("No retry-after header".to_string()),
+                None => Err(Box::new(SimpleError {
+                    message: "No retry-after header".to_string(),
+                })),
             }
         },
         StatusCode::UNAUTHORIZED => {
@@ -78,8 +117,24 @@ pub fn get_with_retry(
                 
             get_with_retry(url, client, token)
         },
-        status_code => Err(format!("Unexpected error code: {}", status_code)),
+        status_code => Err(Box::new(SimpleError {
+            message: format!("Unexpected error code: {}", status_code)
+        })),
     }
+}
+
+pub fn get_next_paging<D: DeserializeOwned>(
+    url: &str,
+    client: Arc<Client>,
+    token: Arc<RwLock<String>>,
+) -> Result<Paging<D>, Box<dyn Error>> {
+    Ok(
+        get_with_retry(
+            url,
+            client,
+            token,
+        )?.json()?
+    )
 }
 
 #[allow(dead_code)]
