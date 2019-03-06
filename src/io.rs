@@ -11,10 +11,14 @@ use std::{
 use crossbeam_channel::{
     Receiver,
     Sender,
+    SendError
 };
 use csv::{
     Reader,
     Writer,
+};
+use itertools::{
+    Itertools
 };
 use serde::{
     Serialize,
@@ -37,18 +41,24 @@ pub fn lines_from_file(
 pub fn read_csv_into_sender<D: DeserializeOwned>(
     sender: Sender<D>,
     file_name: &str,
-) -> csv::Result<()> {
-    let mut reader = Reader::from_path(file_name)?;
+) -> Result<(), SendError<D>> {
+    let mut reader = Reader::from_path(file_name).expect("Error opening reader");
     reader.deserialize::<D>().map(|record| {
-        let record = record?;
-        sender.send(record).unwrap_or_else(|err| {
-            error!(
-                "Error sending {} data through io::read_csv_into_sender sender: {}",
-                file_name,
-                err,
-            );
-        });
-        Ok(())
+        let record = record.expect("Error reading record");
+        sender.send(record)
+    }).collect()
+}
+
+pub fn read_csv_chunks_into_sender<D: DeserializeOwned>(
+    chunk_size: usize,
+    sender: Sender<Vec<D>>,
+    file_name: &str,
+) -> Result<(), SendError<Vec<D>>> {
+    let mut reader = Reader::from_path(file_name).expect("Error opening reader");
+    reader.deserialize::<D>().map(|record| {
+        record.expect("Error reading record")
+    }).chunks(chunk_size).into_iter().map(|record_chunk| {
+        sender.send(record_chunk.collect())
     }).collect()
 }
 
