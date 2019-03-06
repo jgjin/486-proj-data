@@ -67,10 +67,11 @@ pub struct AlbumCsv {
     pub origin_artist: String,
     pub album_group: Option<String>,
     pub album_type: String,
-    pub href: String,
     pub id: String,
+    pub image_url: Option<String>,
     pub name: String,
-    pub uri: String,
+    pub release_date: String,
+    pub release_date_precision: String,
 }
 
 impl AlbumCsv {
@@ -82,10 +83,11 @@ impl AlbumCsv {
             origin_artist: origin_artist,
             album_group: album_simple.album_group,
             album_type: album_simple.album_type,
-            href: album_simple.href,
             id: album_simple.id,
+            image_url: album_simple.images.get(0).map(|image| image.url.to_owned()),
             name: album_simple.name,
-            uri: album_simple.uri,
+            release_date: album_simple.release_date,
+            release_date_precision: album_simple.release_date_precision,
         }
     }
 }

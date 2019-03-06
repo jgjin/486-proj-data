@@ -1,3 +1,9 @@
+use std::{
+    borrow::{
+        ToOwned,
+    },
+};
+
 use serde::{
     Deserialize,
     Serialize,
@@ -46,10 +52,12 @@ with_artist_core_fields!(pub struct ArtistFull {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ArtistCsv {
-    pub href: String,
     pub id: String,
     pub name: String,
-    pub uri: String,
+    pub followers_total: i32,
+    pub genres: String,
+    pub image_url: Option<String>,
+    pub popularity: i32,
 }
 
 impl From<ArtistFull> for ArtistCsv {
@@ -57,10 +65,12 @@ impl From<ArtistFull> for ArtistCsv {
         artist_full: ArtistFull,
     ) -> Self {
         Self {
-            href: artist_full.href,
             id: artist_full.id,
             name: artist_full.name,
-            uri: artist_full.uri,
+            followers_total: artist_full.followers.total,
+            genres: artist_full.genres.join(", "),
+            image_url: artist_full.images.get(0).map(|image| image.url.to_owned()),
+            popularity: artist_full.popularity,
         }
     }
 }
