@@ -10,6 +10,7 @@ use std::{
 };
 
 use crossbeam_channel::{
+    self as channel,
     Receiver,
     Sender,
 };
@@ -28,13 +29,17 @@ use crate::{
     artist_types::{
         ArtistCsv,
     },
+    io::{
+        read_csv_into_sender,
+        write_csv_through_receiver,
+    },
     utils::{
         get_next_paging,
         SimpleError,
     },
 };
 
-fn crawl_artists_album_thread(
+fn crawl_artists_albums_thread(
     artists_crawled: Receiver<ArtistCsv>,
     client: Arc<Client>,
     token: Arc<RwLock<String>>,
@@ -68,7 +73,7 @@ fn crawl_artists_album_thread(
                     error!(
                         "Error sending {} data through album_crawl::crawl_artists_album_thread sender: {}",
                         artist_csv.id,
-                        err
+                        err,
                     );
                 });
 
@@ -103,7 +108,7 @@ pub fn album_crawl(
     info!("Using {} threads", num_threads);
 
     let threads: Vec<thread::JoinHandle<()>> = (0..num_threads).map(|_| {
-        crawl_artists_album_thread(
+        crawl_artists_albums_thread(
             artists_crawled.clone(),
             client.clone(),
             token.clone(),
@@ -114,4 +119,40 @@ pub fn album_crawl(
     threads.into_iter().map(|join_handle| {
         join_handle.join()
     }).collect()
+}
+
+#[allow(dead_code)]
+pub fn album_crawl_main(
+    client: Arc<Client>,
+    token: Arc<RwLock<String>>,
+) {
+    let (artist_sender, artist_receiver) = channel::unbounded();
+    let (album_sender, album_receiver) = channel::unbounded();
+
+    let reader_thread = thread::spawn(move || {
+        read_csv_into_sender(artist_sender, "artists_crawled.csv")
+            .expect("Error in reading artists crawled")
+    });
+
+    let crawler_thread = thread::spawn(move || {
+        album_crawl(artist_receiver, client, token, album_sender)
+            .expect("Error in crawling tracks");
+    });
+
+    let writer_thread = thread::spawn(move || {
+        write_csv_through_receiver(album_receiver, "albums_crawled.csv")
+            .expect("Error in writing tracks");
+    });
+
+    reader_thread.join().unwrap_or_else(|err| {
+        error!("Error in album reader thread: {:?}", err);
+    });
+
+    crawler_thread.join().unwrap_or_else(|err| {
+        error!("Error in album crawler thread: {:?}", err);
+    });
+
+    writer_thread.join().unwrap_or_else(|err| {
+        error!("Error in album writer thread: {:?}", err);
+    });
 }
