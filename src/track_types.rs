@@ -127,3 +127,25 @@ with_track_core_fields!(pub struct TrackFull {
     pub popularity: i32,
     pub restrictions: Option<Map<String, Value>>,
 });
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct TrackCsv {
+    pub origin_album: String,
+    pub id: String,
+    pub name: String,
+    pub track_number: i32,
+}
+
+impl TrackCsv {
+    pub fn extract_from(
+        track_simple: TrackSimple,
+        origin_album: String,
+    ) -> Self {
+        Self {
+            origin_album: origin_album,
+            id: track_simple.id,
+            name: track_simple.name,
+            track_number: track_simple.track_number,
+        }
+    }
+}
