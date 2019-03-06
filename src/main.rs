@@ -53,18 +53,19 @@ fn main(
     let (artist_sender, artist_receiver) = channel::unbounded();
     let (album_sender, album_receiver) = channel::unbounded();
 
-    io::lines_from_file("artists.txt")
-        .expect("Error reading lines")
-        .into_iter().map(|id| {
+    let reader_thread = thread::spawn(move || {
+        io::lines_from_file("artist.txt").unwrap().into_iter().map(|line| {
             artist_sender.send(artist_types::ArtistCsv {
                 href: "".to_string(),
-                id: id.clone(),
+                id: line,
                 name: "".to_string(),
                 uri: "".to_string(),
             }).unwrap_or_else(|err| {
-                error!("Error sending {}: {}", id, err);
+                println!("Error sending data: {}", err);
             });
         }).last();
+        info!("Finished reading");
+    });
 
     let crawler_thread = thread::spawn(move || {
         album_crawl::album_crawl(
@@ -75,7 +76,7 @@ fn main(
         ).unwrap_or_else(|err| {
             error!("Error in crawling albums: {:?}", err)
         });
-        // info!("Finished crawling");
+        info!("Finished crawling");
     });
 
     let writer_thread = thread::spawn(move || {
@@ -83,7 +84,11 @@ fn main(
             .unwrap_or_else(|err| {
                 error!("Error in writing csv: {}", err)
             });
-        // info!("Finished writing");
+        info!("Finished writing");
+    });
+
+    reader_thread.join().unwrap_or_else(|err| {
+        error!("Error in reading txt thread: {:?}", err);
     });
 
     crawler_thread.join().unwrap_or_else(|err| {
