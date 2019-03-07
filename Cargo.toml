@@ -5,6 +5,7 @@ authors = ["banana <jgjin@umich.edu>"]
 edition = "2018"
 
 [dependencies]
+atomicring = "1.1.2"
 chashmap = "2.2.2"
 crossbeam-channel = "0.3"
 crossbeam-queue = "0.1"

@@ -38,6 +38,15 @@ pub fn lines_from_file(
     )
 }
 
+pub fn structs_from_file<D: DeserializeOwned>(
+    file_name: &str,
+) -> csv::Result<Vec<D>> {
+    let mut reader = Reader::from_path(file_name)?;
+    reader.deserialize::<D>().map(|record| {
+        Ok(record?)
+    }).collect()
+}
+
 pub fn read_csv_into_sender<D: DeserializeOwned>(
     sender: Sender<D>,
     file_name: &str,
