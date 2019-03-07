@@ -41,7 +41,7 @@ with_artist_core_fields!(pub struct ArtistFull {
     pub followers: Followers,
     pub genres: Vec<String>,
     pub images: Vec<Image>,
-    pub popularity: i32,
+    pub popularity: Option<i32>,
 });
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -64,7 +64,7 @@ impl From<ArtistFull> for ArtistCsv {
             // followers_total: artist_full.followers.total,
             // genres: artist_full.genres.join(", "),
             // image_url: artist_full.images.get(0).map(|image| image.url.to_owned()),
-            popularity: artist_full.popularity,
+            popularity: artist_full.popularity.unwrap_or(-1),
         }
     }
 }
