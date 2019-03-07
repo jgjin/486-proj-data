@@ -14,6 +14,10 @@ use crossbeam_channel::{
     Receiver,
     Sender,
 };
+use indicatif::{
+    ProgressBar,
+    ProgressStyle,
+};
 use num_cpus;
 use reqwest::{
     Client,
@@ -30,6 +34,7 @@ use crate::{
         ArtistCsv,
     },
     io::{
+        lines_from_file,
         read_csv_into_sender,
         write_csv_through_receiver,
     },
@@ -44,6 +49,7 @@ fn crawl_artists_albums_thread(
     client: Arc<Client>,
     token: Arc<RwLock<String>>,
     sender: Sender<AlbumCsv>,
+    progress: Arc<ProgressBar>,
 ) -> thread::JoinHandle<()> {
     thread::spawn(move || {
         while let Some(artist_csv) = artists_crawled.recv().ok() {
@@ -94,6 +100,8 @@ fn crawl_artists_albums_thread(
                 items = items_new;
                 next = next_new;
             }
+
+            progress.inc(1);
         }
     })
 }
@@ -104,21 +112,35 @@ pub fn album_crawl(
     token: Arc<RwLock<String>>,
     sender: Sender<AlbumCsv>,
 ) -> thread::Result<()> {
+    let progress = Arc::new(ProgressBar::new(
+        (lines_from_file("artists_crawled.csv")
+         .expect("Error in reading artists crawled")
+         .len() - 1) as u64
+    ));
+    progress.set_style(
+        ProgressStyle::default_bar()
+            .template("[{elapsed_precise}] [{wide_bar}] {pos}/{len} ({percent}%)")
+    );
+
     let num_threads = num_cpus::get();
     info!("Using {} threads", num_threads);
-
+    
     let threads: Vec<thread::JoinHandle<()>> = (0..num_threads).map(|_| {
         crawl_artists_albums_thread(
             artists_crawled.clone(),
             client.clone(),
             token.clone(),
             sender.clone(),
+            progress.clone(),
         )
     }).collect();
 
     threads.into_iter().map(|join_handle| {
         join_handle.join()
-    }).collect()
+    }).collect::<thread::Result<()>>().and_then(|res| {
+        progress.finish_with_message("Done crawling albums");
+        Ok(res)
+    })
 }
 
 #[allow(dead_code)]
