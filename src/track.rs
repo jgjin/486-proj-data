@@ -16,6 +16,9 @@ use crate::{
     common_types::{
         Paging,
     },
+    token::{
+        TokenRing,
+    },
     track_types::{
         AudioAnalysis,
         AudioFeatures,
@@ -29,7 +32,7 @@ use crate::{
 
 pub fn get_track_analysis(
     client: Arc<Client>,
-    token: Arc<RwLock<String>>,
+    token: Arc<RwLock<TokenRing>>,
     track_id: &str,
 ) -> Result<AudioAnalysis, Box<dyn Error>> {
     Ok(
@@ -43,7 +46,7 @@ pub fn get_track_analysis(
 
 pub fn get_track_features(
     client: Arc<Client>,
-    token: Arc<RwLock<String>>,
+    token: Arc<RwLock<TokenRing>>,
     track_id: &str,
 ) -> Result<AudioFeatures, Box<dyn Error>> {
     Ok(
@@ -57,7 +60,7 @@ pub fn get_track_features(
 
 pub fn get_tracks_features(
     client: Arc<Client>,
-    token: Arc<RwLock<String>>,
+    token: Arc<RwLock<TokenRing>>,
     track_ids: Vec<&str>,
 ) -> Result<Vec<AudioFeatures>, Box<dyn Error>> {
     Ok(
@@ -81,7 +84,7 @@ pub fn get_tracks_features(
 
 pub fn get_tracks(
     client: Arc<Client>,
-    token: Arc<RwLock<String>>,
+    token: Arc<RwLock<TokenRing>>,
     track_ids: Vec<&str>,
 ) -> Result<Vec<TrackFull>, Box<dyn Error>> {
     Ok(
@@ -105,7 +108,7 @@ pub fn get_tracks(
 
 pub fn get_track(
     client: Arc<Client>,
-    token: Arc<RwLock<String>>,
+    token: Arc<RwLock<TokenRing>>,
     track_id: &str,
 ) -> Result<TrackFull, Box<dyn Error>> {
     Ok(
@@ -119,7 +122,7 @@ pub fn get_track(
 
 pub fn search_tracks(
     client: Arc<Client>,
-    token: Arc<RwLock<String>>,
+    token: Arc<RwLock<TokenRing>>,
     query: &str,
 ) -> Result<Paging<TrackFull>, Box<dyn Error>> {
     Ok(

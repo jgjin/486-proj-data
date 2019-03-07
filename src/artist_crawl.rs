@@ -45,6 +45,9 @@ use crate::{
         lines_from_file,
         write_csv_through_receiver,
     },
+    token::{
+        TokenRing,
+    },
 };
 
 fn crawl_related_artists_thread(
@@ -53,7 +56,7 @@ fn crawl_related_artists_thread(
     num_processed: Arc<AtomicUsize>,
     limit: usize,
     client: Arc<Client>,
-    token: Arc<RwLock<String>>,
+    token: Arc<RwLock<TokenRing>>,
     sender: Sender<ArtistCsv>,
     progress: Arc<ProgressBar>,
 ) -> thread::JoinHandle<()> {
@@ -75,7 +78,7 @@ fn crawl_related_artists_thread(
                     vec![]
                 }).into_iter().map(|artist_full| {
                     if !crawled.contains_key(&artist_full.id) {
-                        crawled.insert(artist.id.clone(), ());
+                        crawled.insert(artist_full.id.clone(), ());
                         queue.push(artist_full);
                     }
                 }).last();
@@ -110,7 +113,7 @@ pub fn artist_crawl(
     seeds: Vec<ArtistFull>,
     limit: usize,
     client: Arc<Client>,
-    token: Arc<RwLock<String>>,
+    token: Arc<RwLock<TokenRing>>,
     sender: Sender<ArtistCsv>,
 ) -> thread::Result<CHashMap<String, ()>> {
     let queue = Arc::new(SegQueue::new());
@@ -154,7 +157,7 @@ pub fn artist_crawl(
 pub fn artist_crawl_main(
     limit: usize,
     client: Arc<Client>,
-    token: Arc<RwLock<String>>,
+    token: Arc<RwLock<TokenRing>>,
 ) {
     let (artist_sender, artist_receiver) = channel::unbounded();
     

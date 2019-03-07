@@ -20,6 +20,9 @@ use crate::{
     common_types::{
         Paging,
     },
+    token::{
+        TokenRing,
+    },
     track_types::{
         TrackSimple,
     },
@@ -31,7 +34,7 @@ use crate::{
 
 pub fn get_album(
     client: Arc<Client>,
-    token: Arc<RwLock<String>>,
+    token: Arc<RwLock<TokenRing>>,
     album_id: &str,
 ) -> Result<AlbumFull, Box<dyn Error>> {
     Ok(
@@ -45,7 +48,7 @@ pub fn get_album(
 
 pub fn get_album_tracks(
     client: Arc<Client>,
-    token: Arc<RwLock<String>>,
+    token: Arc<RwLock<TokenRing>>,
     album_id: &str,
 ) -> Result<Paging<TrackSimple>, Box<dyn Error>> {
     Ok(
@@ -59,7 +62,7 @@ pub fn get_album_tracks(
 
 pub fn get_albums(
     client: Arc<Client>,
-    token: Arc<RwLock<String>>,
+    token: Arc<RwLock<TokenRing>>,
     album_ids: Vec<&str>,
 ) -> Result<Vec<AlbumFull>, Box<dyn Error>> {
     Ok(
@@ -83,7 +86,7 @@ pub fn get_albums(
 
 pub fn search_albums(
     client: Arc<Client>,
-    token: Arc<RwLock<String>>,
+    token: Arc<RwLock<TokenRing>>,
     query: &str,
 ) -> Result<Paging<AlbumSimple>, Box<dyn Error>> {
     Ok(

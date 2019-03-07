@@ -38,6 +38,9 @@ use crate::{
         read_csv_into_sender,
         write_csv_through_receiver,
     },
+    token::{
+        TokenRing,
+    },
     utils::{
         get_next_paging,
         SimpleError,
@@ -47,7 +50,7 @@ use crate::{
 fn crawl_artists_albums_thread(
     artists_crawled: Receiver<ArtistCsv>,
     client: Arc<Client>,
-    token: Arc<RwLock<String>>,
+    token: Arc<RwLock<TokenRing>>,
     sender: Sender<AlbumCsv>,
     progress: Arc<ProgressBar>,
 ) -> thread::JoinHandle<()> {
@@ -109,7 +112,7 @@ fn crawl_artists_albums_thread(
 pub fn album_crawl(
     artists_crawled: Receiver<ArtistCsv>,
     client: Arc<Client>,
-    token: Arc<RwLock<String>>,
+    token: Arc<RwLock<TokenRing>>,
     sender: Sender<AlbumCsv>,
 ) -> thread::Result<()> {
     let progress = Arc::new(ProgressBar::new(
@@ -146,7 +149,7 @@ pub fn album_crawl(
 #[allow(dead_code)]
 pub fn album_crawl_main(
     client: Arc<Client>,
-    token: Arc<RwLock<String>>,
+    token: Arc<RwLock<TokenRing>>,
 ) {
     let (artist_sender, artist_receiver) = channel::unbounded();
     let (album_sender, album_receiver) = channel::unbounded();

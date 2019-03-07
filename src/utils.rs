@@ -11,12 +11,6 @@ use std::{
         Arc,
         RwLock,
     },
-    thread::{
-        sleep,
-    },
-    time::{
-        Duration,
-    }
 };
 
 use reqwest::{
@@ -38,7 +32,7 @@ use serde_json::{
 
 use crate::{
     token::{
-        retrieve_access_token,
+        TokenRing,
     },
     common_types::{
         Paging,
@@ -70,7 +64,7 @@ pub fn search(
     query: &str,
     type_: &str,
     client: Arc<Client>,
-    token: Arc<RwLock<String>>,
+    token: Arc<RwLock<TokenRing>>,
 ) -> Result<Response, Box<dyn Error>> {
     get_with_retry(
         &format!(
@@ -86,11 +80,11 @@ pub fn search(
 pub fn get_with_retry(
     url: &str,
     client: Arc<Client>,
-    token: Arc<RwLock<String>>,
+    token: Arc<RwLock<TokenRing>>,
 ) -> Result<Response, Box<dyn Error>> {
-    info!("Getting URL {}", url);
+    debug!("Getting URL {}", url);
     let response = client.get(url)
-        .bearer_auth(token.read().expect("token RwLock poisoned"))
+        .bearer_auth(token.read().expect("token ring RwLock poisoned").front())
         .send().map_err(|err| {
             format!("Error for {}: {}", url, err)
         })?;
@@ -101,11 +95,9 @@ pub fn get_with_retry(
                 Some(header_value) => {
                     let duration = header_value.to_str()
                         .expect("Unexpected format in retry-after header");
-                    info!("Sleeping {} seconds", duration);
-                    sleep(Duration::from_secs(
+                    (*token.write().expect("token ring RwLock poisoned")).sleep_front_and_get_next(
                         duration.parse::<u64>().expect("Unexpected format in retry-after header")
-                    ));
-
+                    );
                     get_with_retry(url, client, token)
                 },
                 None => Err(Box::new(SimpleError {
@@ -114,12 +106,7 @@ pub fn get_with_retry(
             }
         },
         StatusCode::UNAUTHORIZED => {
-            info!("Refreshing token");
-            *(token.write().expect("token RwLock poisoned")) = retrieve_access_token(client.clone())
-                .expect("Error in access token")
-                .access_token;
-            info!("Using token {}", token.read().expect("token RwLock poisoned"));
-                
+            (*token.write().expect("token ring RwLock poisoned")).refresh_front_and_get_next();
             get_with_retry(url, client, token)
         },
         status_code => Err(Box::new(SimpleError {
@@ -131,7 +118,7 @@ pub fn get_with_retry(
 pub fn get_next_paging<D: DeserializeOwned>(
     url: &str,
     client: Arc<Client>,
-    token: Arc<RwLock<String>>,
+    token: Arc<RwLock<TokenRing>>,
 ) -> Result<Paging<D>, Box<dyn Error>> {
     Ok(
         get_with_retry(

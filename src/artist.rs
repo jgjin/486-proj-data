@@ -22,6 +22,9 @@ use crate::{
     common_types::{
         Paging,
     },
+    token::{
+        TokenRing,
+    },
     track_types::{
         TrackFull,
     },
@@ -33,7 +36,7 @@ use crate::{
 
 pub fn get_artist(
     client: Arc<Client>,
-    token: Arc<RwLock<String>>,
+    token: Arc<RwLock<TokenRing>>,
     artist_id: &str,
 ) -> Result<ArtistFull, Box<dyn Error>> {
     Ok(
@@ -47,7 +50,7 @@ pub fn get_artist(
 
 pub fn get_artist_albums(
     client: Arc<Client>,
-    token: Arc<RwLock<String>>,
+    token: Arc<RwLock<TokenRing>>,
     artist_id: &str,
 ) -> Result<Paging<AlbumSimple>, Box<dyn Error>> {
     Ok(
@@ -61,7 +64,7 @@ pub fn get_artist_albums(
 
 pub fn get_artist_top_tracks(
     client: Arc<Client>,
-    token: Arc<RwLock<String>>,
+    token: Arc<RwLock<TokenRing>>,
     artist_id: &str,
 ) -> Result<Vec<TrackFull>, Box<dyn Error>> {
     Ok(
@@ -82,7 +85,7 @@ pub fn get_artist_top_tracks(
 
 pub fn get_artist_related_artists(
     client: Arc<Client>,
-    token: Arc<RwLock<String>>,
+    token: Arc<RwLock<TokenRing>>,
     artist_id: &str,
 ) -> Result<Vec<ArtistFull>, Box<dyn Error>> {
     Ok(
@@ -103,7 +106,7 @@ pub fn get_artist_related_artists(
 
 pub fn get_artists(
     client: Arc<Client>,
-    token: Arc<RwLock<String>>,
+    token: Arc<RwLock<TokenRing>>,
     artist_ids: Vec<&str>,
 ) -> Result<Vec<ArtistFull>, Box<dyn Error>> {
     Ok(
@@ -127,7 +130,7 @@ pub fn get_artists(
 
 pub fn search_artists(
     client: Arc<Client>,
-    token: Arc<RwLock<String>>,
+    token: Arc<RwLock<TokenRing>>,
     query: &str,
 ) -> Result<Paging<ArtistFull>, Box<dyn Error>> {
     Ok(

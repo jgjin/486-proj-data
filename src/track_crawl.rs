@@ -35,6 +35,9 @@ use crate::{
         read_csv_chunks_into_sender,
         write_csv_through_receiver,
     },
+    token::{
+        TokenRing,
+    },
     track_types::{
         TrackCsv,
     },
@@ -52,7 +55,7 @@ struct NextPaging {
 fn crawl_albums_tracks_thread(
     albums_crawled: Receiver<Vec<AlbumCsv>>,
     client: Arc<Client>,
-    token: Arc<RwLock<String>>,
+    token: Arc<RwLock<TokenRing>>,
     sender: Sender<TrackCsv>,
     progress: Arc<ProgressBar>,
 ) -> thread::JoinHandle<()> {
@@ -94,6 +97,8 @@ fn crawl_albums_tracks_thread(
                         err,
                     );
                 });
+
+                progress.inc(1);
             }).last();
 
             while let Some(next_paging) = next_pagings.pop() {
@@ -126,8 +131,6 @@ fn crawl_albums_tracks_thread(
                         );
                     });
             }
-
-            progress.inc(1);
         }
     })
 }
@@ -135,7 +138,7 @@ fn crawl_albums_tracks_thread(
 pub fn track_crawl(
     albums_crawled: Receiver<Vec<AlbumCsv>>,
     client: Arc<Client>,
-    token: Arc<RwLock<String>>,
+    token: Arc<RwLock<TokenRing>>,
     sender: Sender<TrackCsv>,
 ) -> thread::Result<()> {
     let progress = Arc::new(ProgressBar::new(
@@ -169,7 +172,7 @@ pub fn track_crawl(
 #[allow(dead_code)]
 pub fn track_crawl_main(
     client: Arc<Client>,
-    token: Arc<RwLock<String>>,
+    token: Arc<RwLock<TokenRing>>,
 ) {
     let (album_sender, album_receiver) = channel::unbounded();
     let (track_sender, track_receiver) = channel::unbounded();
