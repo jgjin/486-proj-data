@@ -123,7 +123,7 @@ pub fn artist_crawl(
     let progress = Arc::new(ProgressBar::new(limit as u64));
     progress.set_style(
         ProgressStyle::default_bar()
-            .template("[{elapsed_precise}] [{wide_bar}] {percent}%")
+            .template("[{elapsed_precise}] [{wide_bar}] {pos}/{len} ({percent}%)")
     );
     
     let num_threads = num_cpus::get();
