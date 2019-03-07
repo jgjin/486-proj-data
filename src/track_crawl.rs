@@ -14,6 +14,10 @@ use crossbeam_channel::{
     Receiver,
     Sender,
 };
+use indicatif::{
+    ProgressBar,
+    ProgressStyle,
+};
 use num_cpus;
 use reqwest::{
     Client,
@@ -27,6 +31,7 @@ use crate::{
         AlbumCsv,
     },
     io::{
+        lines_from_file,
         read_csv_chunks_into_sender,
         write_csv_through_receiver,
     },
@@ -49,6 +54,7 @@ fn crawl_albums_tracks_thread(
     client: Arc<Client>,
     token: Arc<RwLock<String>>,
     sender: Sender<TrackCsv>,
+    progress: Arc<ProgressBar>,
 ) -> thread::JoinHandle<()> {
     thread::spawn(move || {
         while let Some(albums_csv) = albums_crawled.recv().ok() {
@@ -120,6 +126,8 @@ fn crawl_albums_tracks_thread(
                         );
                     });
             }
+
+            progress.inc(1);
         }
     })
 }
@@ -130,6 +138,16 @@ pub fn track_crawl(
     token: Arc<RwLock<String>>,
     sender: Sender<TrackCsv>,
 ) -> thread::Result<()> {
+    let progress = Arc::new(ProgressBar::new(
+        (lines_from_file("albums_crawled.csv")
+         .expect("Error in reading artists crawled")
+         .len() - 1) as u64
+    ));
+    progress.set_style(
+        ProgressStyle::default_bar()
+            .template("[{elapsed_precise}] [{wide_bar}] {pos}/{len} ({percent}%)")
+    );
+
     let num_threads = num_cpus::get();
     info!("Using {} threads", num_threads);
 
@@ -139,6 +157,7 @@ pub fn track_crawl(
             client.clone(),
             token.clone(),
             sender.clone(),
+            progress.clone(),
         )
     }).collect();
 
@@ -156,7 +175,7 @@ pub fn track_crawl_main(
     let (track_sender, track_receiver) = channel::unbounded();
     
     let reader_thread = thread::spawn(move || {
-        read_csv_chunks_into_sender(2, album_sender, "albums_t.csv")
+        read_csv_chunks_into_sender(2, album_sender, "albums_crawled.csv")
             .expect("Error in reading albums crawled")
     });
 
