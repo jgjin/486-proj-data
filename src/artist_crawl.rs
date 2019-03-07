@@ -1,5 +1,9 @@
 use std::{
     sync::{
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
         Arc,
         RwLock,
     },
@@ -18,6 +22,10 @@ use crossbeam_channel::{
 };
 use crossbeam_queue::{
     SegQueue,
+};
+use indicatif::{
+    ProgressBar,
+    ProgressStyle,
 };
 use num_cpus;
 use reqwest::{
@@ -42,15 +50,17 @@ use crate::{
 fn crawl_related_artists_thread(
     queue: Arc<SegQueue<ArtistFull>>,
     crawled: Arc<CHashMap<String, ()>>,
+    num_processed: Arc<AtomicUsize>,
     limit: usize,
     client: Arc<Client>,
     token: Arc<RwLock<String>>,
     sender: Sender<ArtistCsv>,
+    progress: Arc<ProgressBar>,
 ) -> thread::JoinHandle<()> {
     thread::spawn(move || {
         let mut sleep_period = 1;
 
-        while crawled.len() < limit {
+        while num_processed.load(Ordering::SeqCst) < limit {
             queue.pop().map(|artist| {
                 get_artist_related_artists(
                     client.clone(),
@@ -63,15 +73,17 @@ fn crawl_related_artists_thread(
                         err,
                     );
                     vec![]
-                }).into_iter().filter(|artist_full| {
-                    !crawled.contains_key(&artist_full.id)
-                }).map(|artist_full| {
-                    queue.push(artist_full);
+                }).into_iter().map(|artist_full| {
+                    if !crawled.contains_key(&artist_full.id) {
+                        crawled.insert(artist.id.clone(), ());
+                        queue.push(artist_full);
+                    }
                 }).last();
 
                 let artist_id = artist.id.clone();
                 // Avoids extra last-minute inserts when limit reached
-                if crawled.len() < limit {
+                // Still not exact, may insert extra entries?
+                if num_processed.load(Ordering::SeqCst) < limit {
                     sender.send(ArtistCsv::from(artist)).unwrap_or_else(|err| {
                         error!(
                             "Error sending {} through artist_crawl::artist_crawl sender: {}",
@@ -79,7 +91,8 @@ fn crawl_related_artists_thread(
                             err,
                         );
                     });
-                    crawled.insert(artist_id, ());
+                    num_processed.fetch_add(1, Ordering::SeqCst);
+                    progress.inc(1);
                 }
             }).unwrap_or_else(|_| {
                 if sleep_period > 8 {
@@ -101,10 +114,17 @@ pub fn artist_crawl(
     sender: Sender<ArtistCsv>,
 ) -> thread::Result<CHashMap<String, ()>> {
     let queue = Arc::new(SegQueue::new());
+    let crawled = Arc::new(CHashMap::new());
     seeds.into_iter().map(|seed| {
+        crawled.insert(seed.id.clone(), ());
         queue.push(seed);
     }).last();
-    let crawled = Arc::new(CHashMap::new());
+    let num_processed = Arc::new(AtomicUsize::new(0));
+    let progress = Arc::new(ProgressBar::new(limit as u64));
+    progress.set_style(
+        ProgressStyle::default_bar()
+            .template("[{elapsed_precise}] [{wide_bar}] {percent}%")
+    );
     
     let num_threads = num_cpus::get();
     info!("Using {} threads", num_threads);
@@ -113,16 +133,19 @@ pub fn artist_crawl(
         crawl_related_artists_thread(
             queue.clone(),
             crawled.clone(),
+            num_processed.clone(),
             limit,
             client.clone(),
             token.clone(),
             sender.clone(),
+            progress.clone(),
         )
     }).collect();
 
     threads.into_iter().map(|join_handle| {
         join_handle.join()
     }).collect::<thread::Result<()>>().and_then(|_| {
+        progress.finish_with_message("Done crawling artists");
         Ok(Arc::try_unwrap(crawled).expect("Error in unwrapping Arc for artist_crawl"))
     })
 }
@@ -134,7 +157,7 @@ pub fn artist_crawl_main(
     token: Arc<RwLock<String>>,
 ) {
     let (artist_sender, artist_receiver) = channel::unbounded();
-
+    
     let seed_artists: Vec<ArtistFull> = lines_from_file("seed_artists.txt")
         .expect("Error in reading seed artists").into_iter().map(|name| {
             search_artists(client.clone(), token.clone(), &name[..])

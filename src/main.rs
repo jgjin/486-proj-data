@@ -2,6 +2,7 @@ extern crate chashmap;
 extern crate crossbeam_channel;
 extern crate crossbeam_queue;
 extern crate csv;
+extern crate indicatif;
 extern crate itertools;
 #[macro_use] extern crate log;
 extern crate num_cpus;
@@ -50,7 +51,7 @@ fn main(
 
     info!("Using token {}", token.read().expect("token RwLock poisoned"));
 
-    artist_crawl::artist_crawl_main(1000000, client.clone(), token.clone());
+    artist_crawl::artist_crawl_main(100, client.clone(), token.clone());
 
     // album_crawl::album_crawl_main(client.clone(), token.clone());
     
