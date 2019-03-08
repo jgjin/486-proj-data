@@ -1,3 +1,4 @@
+extern crate atomicring;
 extern crate chashmap;
 extern crate crossbeam_channel;
 extern crate crossbeam_queue;
@@ -43,17 +44,11 @@ fn main(
     
     let client = Arc::new(Client::new());
 
-    let token = Arc::new(RwLock::new(
-        token::retrieve_access_token(client.clone())
-            .expect("Error in access token")
-            .access_token
-    ));
+    let token = Arc::new(RwLock::new(token::TokenRing::init(client.clone())));
 
-    info!("Using token {}", token.read().expect("token RwLock poisoned"));
+    artist_crawl::artist_crawl_main(20, client.clone(), token.clone());
 
-    artist_crawl::artist_crawl_main(100, client.clone(), token.clone());
-
-    // album_crawl::album_crawl_main(client.clone(), token.clone());
+    album_crawl::album_crawl_main(client.clone(), token.clone());
     
-    // track_crawl::track_crawl_main(client, token);
+    track_crawl::track_crawl_main(client, token);
 }
