@@ -49,6 +49,7 @@ use crate::{
 
 struct NextPaging {
     origin_album: String,
+    origin_album_genres: String,
     url: String,
 }
 
@@ -79,17 +80,22 @@ fn crawl_albums_tracks_thread(
                 vec![]
             }).into_iter().map(|album_full| {
                 let album_id = album_full.id.clone();
+                let album_genres = album_full.genres.clone().join(", ");
                 album_full.tracks.next.map(|next_url| {
                     next_pagings.push(NextPaging {
                         origin_album: album_id.clone(),
+                        origin_album_genres: album_genres.clone(),
                         url: next_url.clone(),
                     });
                 });
                 album_full.tracks.items.into_iter().map(|track_simple| {
-                    sender.send(TrackCsv::extract_from(track_simple, album_id.clone()))
-                        .map_err(|err| SimpleError {
-                            message: err.to_string(),
-                        }.into())
+                    sender.send(TrackCsv::extract_from(
+                        track_simple,
+                        album_id.clone(),
+                        album_genres.clone(),
+                    )).map_err(|err| SimpleError {
+                        message: err.to_string(),
+                    }.into())
                 }).collect::<Result<(), Box<dyn Error>>>().unwrap_or_else(|err| {
                     error!(
                         "Error sending {} data through track_crawl::crawl_albums_tracks_thread sender: {}",
@@ -108,14 +114,18 @@ fn crawl_albums_tracks_thread(
                         paging.next.map(|next_url| {
                             next_pagings.push(NextPaging{
                                 origin_album: origin_album.clone(),
+                                origin_album_genres: next_paging.origin_album_genres.clone(),
                                 url: next_url,
                             });
                         });
                         paging.items.into_iter().map(|track_simple| {
-                            sender.send(TrackCsv::extract_from(track_simple, origin_album.clone()))
-                                .map_err(|err| SimpleError {
-                                    message: err.to_string(),
-                                }.into())
+                            sender.send(TrackCsv::extract_from(
+                                track_simple,
+                                origin_album.clone(),
+                                next_paging.origin_album_genres.clone(),
+                            )).map_err(|err| SimpleError {
+                                message: err.to_string(),
+                            }.into())
                         }).collect::<Result<(), Box<dyn Error>>>().unwrap_or_else(|err| {
                             error!(
                                 "Error sending {} data through track_crawl::crawl_albums_tracks_thread sender: {}",
