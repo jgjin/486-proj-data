@@ -1,4 +1,7 @@
 use std::{
+    clone::{
+        Clone,
+    },
     fmt::{
         Display,
         Formatter,
@@ -10,6 +13,10 @@ use std::{
     sync::{
         Arc,
         RwLock,
+    },
+    thread,
+    time::{
+        Duration,
     },
 };
 
@@ -116,9 +123,9 @@ pub fn get_with_retry(
 }
 
 pub fn get_next_paging<D: DeserializeOwned>(
-    url: &str,
     client: Arc<Client>,
     token: Arc<RwLock<TokenRing>>,
+    url: &str,
 ) -> Result<Paging<D>, Box<dyn Error>> {
     Ok(
         get_with_retry(
@@ -128,6 +135,33 @@ pub fn get_next_paging<D: DeserializeOwned>(
         )?.json()?
     )
 }
+
+pub fn loop_until_ok<Input: Clone, OkReturn>(
+    api_endpoint: &Fn(
+        Arc<Client>,
+        Arc<RwLock<TokenRing>>,
+        Input,
+    ) -> Result<OkReturn, Box<dyn Error>>, 
+    client: Arc<Client>,
+    token: Arc<RwLock<TokenRing>>,
+    input: Input,
+) -> Result<OkReturn, Box<dyn Error>> {
+    api_endpoint(
+        client.clone(),
+        token.clone(),
+        input.clone(),
+    ).or_else(|_| {
+        info!("Error in utils::loop_until_ok, retrying");
+        thread::sleep(Duration::from_secs(3));
+        loop_until_ok(
+            api_endpoint,
+            client,
+            token,
+            input
+        )
+    })
+}
+
 
 #[allow(dead_code)]
 pub fn print_full_response(

@@ -43,6 +43,7 @@ use crate::{
     },
     utils::{
         get_next_paging,
+        loop_until_ok,
         SimpleError,
     },
 };
@@ -56,7 +57,8 @@ fn crawl_artists_albums_thread(
 ) -> thread::JoinHandle<()> {
     thread::spawn(move || {
         while let Some(artist_csv) = artists_crawled.recv().ok() {
-            let (mut items, mut next) = get_artist_albums(
+            let (mut items, mut next) = loop_until_ok(
+                &get_artist_albums,
                 client.clone(),
                 token.clone(),
                 &artist_csv.id[..],
@@ -64,7 +66,7 @@ fn crawl_artists_albums_thread(
                 (Some(paging.items), paging.next)
             }).unwrap_or_else(|err| {
                 error!(
-                    "Error in artist::get_artist_albums for {}: {}",
+                    "Unexpected error in artist::get_artist_albums for {}: {}",
                     artist_csv.id,
                     err,
                 );
@@ -87,17 +89,21 @@ fn crawl_artists_albums_thread(
                 });
 
                 let (items_new, next_new) = next.map(|next_paging_url| {
-                    get_next_paging(&next_paging_url[..], client.clone(), token.clone())
-                        .map(|paging| {
-                            (Some(paging.items), paging.next)
-                        }).unwrap_or_else(|err| {
-                            error!(
-                                "Error getting next paging with URL {}: {}",
-                                next_paging_url,
-                                err,
-                            );
-                            (None, None)
-                        })
+                    loop_until_ok(
+                        &get_next_paging,
+                        client.clone(),
+                        token.clone(),
+                        &next_paging_url[..],
+                    ).map(|paging| {
+                        (Some(paging.items), paging.next)
+                    }).unwrap_or_else(|err| {
+                        error!(
+                            "Unexpected error in getting next paging with URL {}: {}",
+                            next_paging_url,
+                            err,
+                        );
+                        (None, None)
+                    })
                 }).unwrap_or((None, None));
 
                 items = items_new;

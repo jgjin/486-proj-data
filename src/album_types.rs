@@ -57,7 +57,7 @@ with_album_core_fields!(pub struct AlbumFull {
     pub copyrights: Vec<Copyright>,
     pub external_ids: Map<String, Value>,
     pub genres: Vec<String>,
-    pub label: String,
+    pub label: Option<String>,
     pub popularity: i32,
     pub tracks: Paging<TrackSimple>,
 });
@@ -65,10 +65,8 @@ with_album_core_fields!(pub struct AlbumFull {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct AlbumCsv {
     pub origin_artist: String,
-    // pub album_group: Option<String>,
     pub album_type: String,
     pub id: String,
-    // pub image_url: Option<String>,
     pub name: String,
     pub release_date: String,
     pub release_date_precision: String,
@@ -81,10 +79,8 @@ impl AlbumCsv {
     ) -> Self {
         Self {
             origin_artist: origin_artist,
-            // album_group: album_simple.album_group,
             album_type: album_simple.album_type,
             id: album_simple.id,
-            // image_url: album_simple.images.get(0).map(|image| image.url.to_owned()),
             name: album_simple.name,
             release_date: album_simple.release_date,
             release_date_precision: album_simple.release_date_precision,

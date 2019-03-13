@@ -43,6 +43,7 @@ use crate::{
     },
     utils::{
         get_next_paging,
+        loop_until_ok,
         SimpleError,
     },
 };
@@ -68,13 +69,14 @@ fn crawl_albums_tracks_thread(
                 &album_csv.id[..]
             }).collect();
 
-            get_albums(
+            loop_until_ok(
+                &get_albums,
                 client.clone(),
                 token.clone(),
                 albums_ids,
             ).unwrap_or_else(|err| {
                 error!(
-                    "Error in album::get_albums : {}",
+                    "Unexpected error in album::get_albums_loop_until_ok : {}",
                     err,
                 );
                 vec![]
@@ -109,37 +111,41 @@ fn crawl_albums_tracks_thread(
 
             while let Some(next_paging) = next_pagings.pop() {
                 let origin_album = next_paging.origin_album.clone();
-                get_next_paging(&next_paging.url[..], client.clone(), token.clone())
-                    .map(|paging| {
-                        paging.next.map(|next_url| {
-                            next_pagings.push(NextPaging{
-                                origin_album: origin_album.clone(),
-                                origin_album_genres: next_paging.origin_album_genres.clone(),
-                                url: next_url,
-                            });
+                loop_until_ok(
+                    &get_next_paging,
+                    client.clone(),
+                    token.clone(),
+                    &next_paging.url[..],
+                ).map(|paging| {
+                    paging.next.map(|next_url| {
+                        next_pagings.push(NextPaging{
+                            origin_album: origin_album.clone(),
+                            origin_album_genres: next_paging.origin_album_genres.clone(),
+                            url: next_url,
                         });
-                        paging.items.into_iter().map(|track_simple| {
-                            sender.send(TrackCsv::extract_from(
-                                track_simple,
-                                origin_album.clone(),
-                                next_paging.origin_album_genres.clone(),
-                            )).map_err(|err| SimpleError {
-                                message: err.to_string(),
-                            }.into())
-                        }).collect::<Result<(), Box<dyn Error>>>().unwrap_or_else(|err| {
-                            error!(
-                                "Error sending {} data through track_crawl::crawl_albums_tracks_thread sender: {}",
-                                origin_album,
-                                err,
-                            );
-                        });
-                    }).unwrap_or_else(|err| {
+                    });
+                    paging.items.into_iter().map(|track_simple| {
+                        sender.send(TrackCsv::extract_from(
+                            track_simple,
+                            origin_album.clone(),
+                            next_paging.origin_album_genres.clone(),
+                        )).map_err(|err| SimpleError {
+                            message: err.to_string(),
+                        }.into())
+                    }).collect::<Result<(), Box<dyn Error>>>().unwrap_or_else(|err| {
                         error!(
-                            "Error getting next paging with URL {}: {}",
-                            next_paging.url,
+                            "Error in sending {} data through track_crawl::crawl_albums_tracks_thread sender: {}",
+                            origin_album,
                             err,
                         );
                     });
+                }).unwrap_or_else(|err| {
+                    error!(
+                        "Unexpected error in getting next paging with URL {}: {}",
+                        next_paging.url,
+                        err,
+                    );
+                });
             }
         }
     })
@@ -188,7 +194,7 @@ pub fn track_crawl_main(
     let (track_sender, track_receiver) = channel::unbounded();
     
     let reader_thread = thread::spawn(move || {
-        read_csv_chunks_into_sender(2, album_sender, "albums_crawled.csv")
+        read_csv_chunks_into_sender(20, album_sender, "albums_crawled.csv")
             .expect("Error in reading albums crawled")
     });
 
