@@ -48,6 +48,9 @@ use crate::{
     token::{
         TokenRing,
     },
+    utils::{
+        loop_until_ok,
+    },
 };
 
 fn crawl_related_artists_thread(
@@ -65,13 +68,14 @@ fn crawl_related_artists_thread(
 
         while num_processed.load(Ordering::SeqCst) < limit {
             queue.pop().map(|artist| {
-                get_artist_related_artists(
+                loop_until_ok(
+                    &get_artist_related_artists,
                     client.clone(),
                     token.clone(),
                     &artist.id[..],
                 ).unwrap_or_else(|err| {
                     error!(
-                        "Error in artist::get_artist_related_artists for {}: {}",
+                        "Unexpected error in artist::get_artist_related_artists for {}: {}",
                         artist.id,
                         err,
                     );

@@ -46,6 +46,7 @@ struct SpotifyClient {
     pub secret: String,
 }
 
+#[derive(Debug)]
 struct SpotifyClientWithToken {
     pub token: String,
     pub client: SpotifyClient,
@@ -87,13 +88,15 @@ impl TokenRing {
             }).collect();
 
         let token_ring = Self {
-            // Extra slot to allow for pushing and popping in any order
-            ring: Arc::new(AtomicRingQueue::with_capacity(tokens.len())),
+            // Segfaults when running (potential crate issue), fix with extra slots
+            // Extra slots for each token in case pops take too long relative to pushes
+            ring: Arc::new(AtomicRingQueue::with_capacity(tokens.len() * 2)),
             current_token: tokens.pop().expect("Empty Spotify clients"),
             client: client,
         };
 
         tokens.into_iter().map(|spotify_client_with_token| {
+            // Use push_overwrite because guaranteed enough space in queue
             token_ring.ring.push_overwrite(spotify_client_with_token);
         }).last();
 
@@ -123,7 +126,7 @@ impl TokenRing {
         );
         thread::spawn(move || {
             sleep(Duration::from_secs(secs));
-            ring_clone.push_overwrite(new_token);
+            ring_clone.try_push(new_token).expect("Error in pushing new token in sleep");
         });
 
         self.current_token = self.ring.pop();
@@ -135,7 +138,7 @@ impl TokenRing {
     ) {
         info!("Refreshing {} token", self.current_token.client.name);
         
-        self.ring.push_overwrite(SpotifyClientWithToken::new(
+        self.ring.try_push(SpotifyClientWithToken::new(
             retrieve_access_token(
                 self.client.clone(),
                 &self.current_token.client.id[..],
@@ -151,7 +154,7 @@ impl TokenRing {
                 id: self.current_token.client.id.clone(),
                 secret: self.current_token.client.secret.clone(),
             },
-        ));
+        )).expect("Error in pushing new token in refresh");
         
         self.current_token = self.ring.pop();
         info!("Using {} token", self.current_token.client.name);
@@ -174,4 +177,3 @@ fn retrieve_access_token(
             .json()?
     )
 }
-
