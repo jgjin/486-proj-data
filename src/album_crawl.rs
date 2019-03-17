@@ -76,7 +76,11 @@ fn crawl_artists_albums_thread(
             while let Some(paging_items) = items {
                 paging_items.into_iter().map(|album_simple| {
                     sender.send(
-                        AlbumCsv::extract_from(album_simple, artist_csv.id.clone())
+                        AlbumCsv::extract_from(
+                            album_simple,
+                            artist_csv.id.clone(),
+                            artist_csv.genres.clone(),
+                        )
                     ).map_err(|err| SimpleError {
                         message: err.to_string(),
                     }.into())

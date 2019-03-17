@@ -65,6 +65,7 @@ with_album_core_fields!(pub struct AlbumFull {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct AlbumCsv {
     pub origin_artist: String,
+    pub origin_artist_genres: String,
     pub album_type: String,
     pub id: String,
     pub name: String,
@@ -76,9 +77,11 @@ impl AlbumCsv {
     pub fn extract_from(
         album_simple: AlbumSimple,
         origin_artist: String,
+        origin_artist_genres: String,
     ) -> Self {
         Self {
             origin_artist: origin_artist,
+            origin_artist_genres: origin_artist_genres,
             album_type: album_simple.album_type,
             id: album_simple.id,
             name: album_simple.name,

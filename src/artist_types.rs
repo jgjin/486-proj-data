@@ -48,9 +48,8 @@ with_artist_core_fields!(pub struct ArtistFull {
 pub struct ArtistCsv {
     pub id: String,
     pub name: String,
-    // pub followers_total: i32,
-    // pub genres: String,
-    // pub image_url: Option<String>,
+    pub followers_total: i32,
+    pub genres: String,
     pub popularity: i32,
 }
 
@@ -61,9 +60,8 @@ impl From<ArtistFull> for ArtistCsv {
         Self {
             id: artist_full.id,
             name: artist_full.name,
-            // followers_total: artist_full.followers.total,
-            // genres: artist_full.genres.join(", "),
-            // image_url: artist_full.images.get(0).map(|image| image.url.to_owned()),
+            followers_total: artist_full.followers.total,
+            genres: artist_full.genres.join(", "),
             popularity: artist_full.popularity.unwrap_or(-1),
         }
     }

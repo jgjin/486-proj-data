@@ -46,9 +46,9 @@ fn main(
 
     let token = Arc::new(RwLock::new(token::TokenRing::init(client.clone())));
 
-    artist_crawl::artist_crawl_main(20, client.clone(), token.clone());
+    artist_crawl::artist_crawl_main(100100, client.clone(), token.clone());
 
     album_crawl::album_crawl_main(client.clone(), token.clone());
-    
+
     track_crawl::track_crawl_main(client, token);
 }

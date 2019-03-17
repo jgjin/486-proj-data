@@ -80,9 +80,13 @@ fn crawl_albums_tracks_thread(
                     err,
                 );
                 vec![]
-            }).into_iter().map(|album_full| {
+            }).into_iter().zip(albums_csv.iter()).map(|(album_full, album_csv)| {
                 let album_id = album_full.id.clone();
-                let album_genres = album_full.genres.clone().join(", ");
+                let mut album_genres = album_csv.origin_artist_genres.clone();
+                if !album_full.genres.is_empty() {
+                    album_genres = album_full.genres.join(", ");
+                }
+
                 album_full.tracks.next.map(|next_url| {
                     next_pagings.push(NextPaging {
                         origin_album: album_id.clone(),

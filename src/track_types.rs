@@ -131,7 +131,7 @@ with_track_core_fields!(pub struct TrackFull {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct TrackCsv {
     pub origin_album: String,
-    pub origin_album_genres: String,
+    pub origin_album_or_origin_artist_genres: String,
     pub id: String,
     pub name: String,
     pub track_number: i32,
@@ -141,11 +141,11 @@ impl TrackCsv {
     pub fn extract_from(
         track_simple: TrackSimple,
         origin_album: String,
-        origin_album_genres: String,
+        origin_album_or_origin_artist_genres: String,
     ) -> Self {
         Self {
             origin_album: origin_album,
-            origin_album_genres: origin_album_genres,
+            origin_album_or_origin_artist_genres: origin_album_or_origin_artist_genres,
             id: track_simple.id,
             name: track_simple.name,
             track_number: track_simple.track_number,
