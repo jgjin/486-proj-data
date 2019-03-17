@@ -13,11 +13,11 @@ use reqwest::{
 };
 
 use crate::{
+    client::{
+        ClientRing,
+    },
     common_types::{
         Paging,
-    },
-    token::{
-        TokenRing,
     },
     track_types::{
         AudioAnalysis,
@@ -32,35 +32,35 @@ use crate::{
 
 pub fn get_track_analysis(
     client: Arc<Client>,
-    token: Arc<RwLock<TokenRing>>,
+    client_ring: Arc<RwLock<ClientRing>>,
     track_id: &str,
 ) -> Result<AudioAnalysis, Box<dyn Error>> {
     Ok(
         get_with_retry(
             &format!("https://api.spotify.com/v1/audio-analysis/{}/", track_id)[..],
             client,
-            token,
+            client_ring,
         )?.json()?
     )
 }
 
 pub fn get_track_features(
     client: Arc<Client>,
-    token: Arc<RwLock<TokenRing>>,
+    client_ring: Arc<RwLock<ClientRing>>,
     track_id: &str,
 ) -> Result<AudioFeatures, Box<dyn Error>> {
     Ok(
         get_with_retry(
             &format!("https://api.spotify.com/v1/audio-features/{}/", track_id)[..],
             client,
-            token,
+            client_ring,
         )?.json()?
     )
 }
 
 pub fn get_tracks_features(
     client: Arc<Client>,
-    token: Arc<RwLock<TokenRing>>,
+    client_ring: Arc<RwLock<ClientRing>>,
     track_ids: Vec<&str>,
 ) -> Result<Vec<AudioFeatures>, Box<dyn Error>> {
     Ok(
@@ -70,7 +70,7 @@ pub fn get_tracks_features(
                 track_ids.join(","),
             )[..],
             client,
-            token,
+            client_ring,
         )?.json::<serde_json::Value>()
             .expect("Error parsing JSON in tracks::get_tracks_features")
             .get("audio_features").expect("Error in tracks::get_tracks_features format")
@@ -84,7 +84,7 @@ pub fn get_tracks_features(
 
 pub fn get_tracks(
     client: Arc<Client>,
-    token: Arc<RwLock<TokenRing>>,
+    client_ring: Arc<RwLock<ClientRing>>,
     track_ids: Vec<&str>,
 ) -> Result<Vec<TrackFull>, Box<dyn Error>> {
     Ok(
@@ -94,7 +94,7 @@ pub fn get_tracks(
                 track_ids.join(","),
             )[..],
             client,
-            token,
+            client_ring,
         )?.json::<serde_json::Value>()
             .expect("Error parsing JSON in track::get_tracks")
             .get("tracks").expect("Error in track::get_tracks format")
@@ -108,26 +108,26 @@ pub fn get_tracks(
 
 pub fn get_track(
     client: Arc<Client>,
-    token: Arc<RwLock<TokenRing>>,
+    client_ring: Arc<RwLock<ClientRing>>,
     track_id: &str,
 ) -> Result<TrackFull, Box<dyn Error>> {
     Ok(
         get_with_retry(
             &format!("https://api.spotify.com/v1/tracks/{}/", track_id)[..],
             client,
-            token,
+            client_ring,
         )?.json()?
     )
 }
 
 pub fn search_tracks(
     client: Arc<Client>,
-    token: Arc<RwLock<TokenRing>>,
+    client_ring: Arc<RwLock<ClientRing>>,
     query: &str,
 ) -> Result<Paging<TrackFull>, Box<dyn Error>> {
     Ok(
         serde_json::from_value(
-            search(query, "track", client, token)?
+            search(query, "track", client, client_ring)?
                 .json::<serde_json::Value>()
                 .expect("Error parsing JSON in track::search_tracks")
                 .get("tracks").expect("Error in track::search_tracks format")

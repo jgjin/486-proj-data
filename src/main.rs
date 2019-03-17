@@ -18,10 +18,10 @@ mod album_types;
 mod artist;
 mod artist_crawl;
 mod artist_types;
+mod client;
 mod common_types;
 mod io;
 mod test;
-mod token;
 mod track;
 mod track_crawl;
 mod track_types;
@@ -44,11 +44,11 @@ fn main(
     
     let client = Arc::new(Client::new());
 
-    let token = Arc::new(RwLock::new(token::TokenRing::init(client.clone())));
+    let client_ring = Arc::new(RwLock::new(client::ClientRing::init(client.clone())));
 
-    artist_crawl::artist_crawl_main(100100, client.clone(), token.clone());
+    artist_crawl::artist_crawl_main(100100, client.clone(), client_ring.clone());
 
-    album_crawl::album_crawl_main(client.clone(), token.clone());
+    album_crawl::album_crawl_main(client.clone(), client_ring.clone());
 
-    track_crawl::track_crawl_main(client, token);
+    track_crawl::track_crawl_main(client, client_ring);
 }

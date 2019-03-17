@@ -41,12 +41,12 @@ use crate::{
         ArtistFull,
         ArtistCsv,
     },
+    client::{
+        ClientRing,
+    },
     io::{
         lines_from_file,
         write_csv_through_receiver,
-    },
-    token::{
-        TokenRing,
     },
     utils::{
         loop_until_ok,
@@ -59,7 +59,7 @@ fn crawl_related_artists_thread(
     num_processed: Arc<AtomicUsize>,
     limit: usize,
     client: Arc<Client>,
-    token: Arc<RwLock<TokenRing>>,
+    client_ring: Arc<RwLock<ClientRing>>,
     sender: Sender<ArtistCsv>,
     progress: Arc<ProgressBar>,
 ) -> thread::JoinHandle<()> {
@@ -71,7 +71,7 @@ fn crawl_related_artists_thread(
                 loop_until_ok(
                     &get_artist_related_artists,
                     client.clone(),
-                    token.clone(),
+                    client_ring.clone(),
                     &artist.id[..],
                 ).unwrap_or_else(|err| {
                     error!(
@@ -117,7 +117,7 @@ pub fn artist_crawl(
     seeds: Vec<ArtistFull>,
     limit: usize,
     client: Arc<Client>,
-    token: Arc<RwLock<TokenRing>>,
+    client_ring: Arc<RwLock<ClientRing>>,
     sender: Sender<ArtistCsv>,
 ) -> thread::Result<CHashMap<String, ()>> {
     let queue = Arc::new(SegQueue::new());
@@ -143,7 +143,7 @@ pub fn artist_crawl(
             num_processed.clone(),
             limit,
             client.clone(),
-            token.clone(),
+            client_ring.clone(),
             sender.clone(),
             progress.clone(),
         )
@@ -161,13 +161,13 @@ pub fn artist_crawl(
 pub fn artist_crawl_main(
     limit: usize,
     client: Arc<Client>,
-    token: Arc<RwLock<TokenRing>>,
+    client_ring: Arc<RwLock<ClientRing>>,
 ) {
     let (artist_sender, artist_receiver) = channel::unbounded();
     
     let seed_artists: Vec<ArtistFull> = lines_from_file("seed_artists.txt")
         .expect("Error in reading seed artists").into_iter().map(|name| {
-            search_artists(client.clone(), token.clone(), &name[..])
+            search_artists(client.clone(), client_ring.clone(), &name[..])
                 .expect("Error in searching artists")
                 .items.drain(..).next().expect("No artists found")
         }).collect();
@@ -177,7 +177,7 @@ pub fn artist_crawl_main(
             seed_artists,
             limit,
             client,
-            token,
+            client_ring,
             artist_sender,
         ).expect("Error in crawling artists");
     });

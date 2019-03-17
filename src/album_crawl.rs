@@ -33,13 +33,13 @@ use crate::{
     artist_types::{
         ArtistCsv,
     },
+    client::{
+        ClientRing,
+    },
     io::{
         lines_from_file,
         read_csv_into_sender,
         write_csv_through_receiver,
-    },
-    token::{
-        TokenRing,
     },
     utils::{
         get_next_paging,
@@ -51,7 +51,7 @@ use crate::{
 fn crawl_artists_albums_thread(
     artists_crawled: Receiver<ArtistCsv>,
     client: Arc<Client>,
-    token: Arc<RwLock<TokenRing>>,
+    client_ring: Arc<RwLock<ClientRing>>,
     sender: Sender<AlbumCsv>,
     progress: Arc<ProgressBar>,
 ) -> thread::JoinHandle<()> {
@@ -60,7 +60,7 @@ fn crawl_artists_albums_thread(
             let (mut items, mut next) = loop_until_ok(
                 &get_artist_albums,
                 client.clone(),
-                token.clone(),
+                client_ring.clone(),
                 &artist_csv.id[..],
             ).map(|paging| {
                 (Some(paging.items), paging.next)
@@ -96,7 +96,7 @@ fn crawl_artists_albums_thread(
                     loop_until_ok(
                         &get_next_paging,
                         client.clone(),
-                        token.clone(),
+                        client_ring.clone(),
                         &next_paging_url[..],
                     ).map(|paging| {
                         (Some(paging.items), paging.next)
@@ -122,7 +122,7 @@ fn crawl_artists_albums_thread(
 pub fn album_crawl(
     artists_crawled: Receiver<ArtistCsv>,
     client: Arc<Client>,
-    token: Arc<RwLock<TokenRing>>,
+    client_ring: Arc<RwLock<ClientRing>>,
     sender: Sender<AlbumCsv>,
 ) -> thread::Result<()> {
     let progress = Arc::new(ProgressBar::new(
@@ -142,7 +142,7 @@ pub fn album_crawl(
         crawl_artists_albums_thread(
             artists_crawled.clone(),
             client.clone(),
-            token.clone(),
+            client_ring.clone(),
             sender.clone(),
             progress.clone(),
         )
@@ -159,7 +159,7 @@ pub fn album_crawl(
 #[allow(dead_code)]
 pub fn album_crawl_main(
     client: Arc<Client>,
-    token: Arc<RwLock<TokenRing>>,
+    client_ring: Arc<RwLock<ClientRing>>,
 ) {
     let (artist_sender, artist_receiver) = channel::unbounded();
     let (album_sender, album_receiver) = channel::unbounded();
@@ -170,7 +170,7 @@ pub fn album_crawl_main(
     });
 
     let crawler_thread = thread::spawn(move || {
-        album_crawl(artist_receiver, client, token, album_sender)
+        album_crawl(artist_receiver, client, client_ring, album_sender)
             .expect("Error in crawling tracks");
     });
 

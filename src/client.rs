@@ -64,13 +64,13 @@ impl SpotifyClientWithToken {
     }
 }
 
-pub struct TokenRing {
+pub struct ClientRing {
     current_token: SpotifyClientWithToken,
     ring: Arc<AtomicRingQueue<SpotifyClientWithToken>>,
     client: Arc<Client>,
 }
 
-impl TokenRing {
+impl ClientRing {
     pub fn init(
         client: Arc<Client>,
     ) -> Self {

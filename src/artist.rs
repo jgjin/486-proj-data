@@ -19,11 +19,11 @@ use crate::{
     artist_types::{
         ArtistFull,
     },
+    client::{
+        ClientRing,
+    },
     common_types::{
         Paging,
-    },
-    token::{
-        TokenRing,
     },
     track_types::{
         TrackFull,
@@ -36,42 +36,42 @@ use crate::{
 
 pub fn get_artist(
     client: Arc<Client>,
-    token: Arc<RwLock<TokenRing>>,
+    client_ring: Arc<RwLock<ClientRing>>,
     artist_id: &str,
 ) -> Result<ArtistFull, Box<dyn Error>> {
     Ok(
         get_with_retry(
             &format!("https://api.spotify.com/v1/artists/{}/", artist_id)[..],
             client,
-            token,
+            client_ring,
         )?.json()?
     )
 }
 
 pub fn get_artist_albums(
     client: Arc<Client>,
-    token: Arc<RwLock<TokenRing>>,
+    client_ring: Arc<RwLock<ClientRing>>,
     artist_id: &str,
 ) -> Result<Paging<AlbumSimple>, Box<dyn Error>> {
     Ok(
         get_with_retry(
             &format!("https://api.spotify.com/v1/artists/{}/albums/?include_groups=album,single,compilation&country=US", artist_id)[..],
             client,
-            token,
+            client_ring,
         )?.json()?
     )
 }
 
 pub fn get_artist_top_tracks(
     client: Arc<Client>,
-    token: Arc<RwLock<TokenRing>>,
+    client_ring: Arc<RwLock<ClientRing>>,
     artist_id: &str,
 ) -> Result<Vec<TrackFull>, Box<dyn Error>> {
     Ok(
         get_with_retry(
             &format!("https://api.spotify.com/v1/artists/{}/top-tracks/?country=US", artist_id)[..],
             client,
-            token,
+            client_ring,
         )?.json::<serde_json::Value>()
             .expect("Error parsing JSON in artist::get_artist_top_tracks")
             .get("tracks").expect("Error in artist::get_artist_top_tracks format")
@@ -85,14 +85,14 @@ pub fn get_artist_top_tracks(
 
 pub fn get_artist_related_artists(
     client: Arc<Client>,
-    token: Arc<RwLock<TokenRing>>,
+    client_ring: Arc<RwLock<ClientRing>>,
     artist_id: &str,
 ) -> Result<Vec<ArtistFull>, Box<dyn Error>> {
     Ok(
         get_with_retry(
             &format!("https://api.spotify.com/v1/artists/{}/related-artists/", artist_id)[..],
             client,
-            token,
+            client_ring,
         )?.json::<serde_json::Value>()
             .expect("Error parsing JSON in artist::get_artist_related_artists")
             .get("artists").expect("Error in artist::get_artist_related_artists format")
@@ -106,7 +106,7 @@ pub fn get_artist_related_artists(
 
 pub fn get_artists(
     client: Arc<Client>,
-    token: Arc<RwLock<TokenRing>>,
+    client_ring: Arc<RwLock<ClientRing>>,
     artist_ids: Vec<&str>,
 ) -> Result<Vec<ArtistFull>, Box<dyn Error>> {
     Ok(
@@ -116,7 +116,7 @@ pub fn get_artists(
                 artist_ids.join(",")
             )[..],
             client,
-            token,
+            client_ring,
         )?.json::<serde_json::Value>()
             .expect("Error parsing JSON in artist::get_artists")
             .get("artists").expect("Error in artist::get_artists format")
@@ -130,12 +130,12 @@ pub fn get_artists(
 
 pub fn search_artists(
     client: Arc<Client>,
-    token: Arc<RwLock<TokenRing>>,
+    client_ring: Arc<RwLock<ClientRing>>,
     query: &str,
 ) -> Result<Paging<ArtistFull>, Box<dyn Error>> {
     Ok(
         serde_json::from_value(
-            search(query, "artist", client, token)?
+            search(query, "artist", client, client_ring)?
                 .json::<serde_json::Value>()
                 .expect("Error parsing JSON in artist::search_artists")
                 .get("artists").expect("Error in artist::search_artists format")
