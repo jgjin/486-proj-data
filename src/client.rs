@@ -66,22 +66,28 @@ struct SpotifyClientWithProxy {
 
 impl SpotifyClientWithProxy {
     pub fn init(
+        token_client: &Client,
         client_metadata: SpotifyClientMetadata,
         proxy: Proxy,
     ) -> reqwest::Result<Self> {
-        let client = Client::builder()
-            .proxy(reqwest::Proxy::all(&format!("{}:{}", proxy.ip_address, proxy.port)[..])?)
+        let proxy_netloc = format!("http://{}:{}", proxy.ip_address, proxy.port);
+        info!("Using {} for {} client", proxy_netloc, client_metadata.name);
+
+        let proxy_client = Client::builder()
+            .proxy(reqwest::Proxy::all(&proxy_netloc[..])?)
             .build()?;
 
+        info!("Retrieving API token for {} client", client_metadata.name);
         let token = retrieve_access_token(
-            &client,
+            token_client,
             &client_metadata.id[..],
             &client_metadata.secret[..],
         )?.access_token;
-        
+        info!("Using token {} for {} client", token, client_metadata.name);
+
         Ok(Self {
             client_metadata: client_metadata,
-            client: client,
+            client: proxy_client,
             proxy: proxy,
             token: token,
         })
@@ -95,6 +101,7 @@ struct Proxy {
 }
 
 pub struct ClientRing {
+    token_client: Client,
     current_client: SpotifyClientWithProxy,
     client_ring: Arc<AtomicRingQueue<SpotifyClientWithProxy>>,
     proxies: Arc<AtomicRingQueue<Proxy>>,
@@ -102,6 +109,7 @@ pub struct ClientRing {
 
 impl ClientRing {
     pub fn init(
+        token_client: Client,
     ) -> Result<Self, Box<dyn Error>> {
         let clients_metadata = structs_from_file::<SpotifyClientMetadata>("clients.csv")?;
         let proxies = structs_from_file::<Proxy>("proxies.csv")?;
@@ -110,7 +118,7 @@ impl ClientRing {
         let mut clients_with_proxies = clients_metadata.into_iter().zip(
             proxies.iter().cloned().cycle().take(client_metadata_len),
         ).map(|(client_metadata, proxy)| {
-            SpotifyClientWithProxy::init(client_metadata, proxy)
+            SpotifyClientWithProxy::init(&token_client, client_metadata, proxy)
         }).collect::<reqwest::Result<Vec<SpotifyClientWithProxy>>>()?;
 
         let current_client = clients_with_proxies.pop().expect("Empty clients or proxies");
@@ -125,6 +133,7 @@ impl ClientRing {
         proxies.into_iter().map(|proxy| { proxies_queue.push_overwrite(proxy); }).last();
 
         Ok(Self {
+            token_client: token_client,
             current_client: current_client,
             client_ring: client_ring,
             proxies: proxies_queue,
@@ -164,6 +173,7 @@ impl ClientRing {
             .expect("Error in pushing new proxy in refresh");
 
         self.client_ring.try_push(SpotifyClientWithProxy::init(
+            &self.token_client,
             self.current_client.client_metadata.clone(),
             self.proxies.pop(),
         ).expect("Error in refreshing client")).expect("Error in pushing new client in refresh");
