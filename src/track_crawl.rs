@@ -19,9 +19,6 @@ use indicatif::{
     ProgressStyle,
 };
 use num_cpus;
-use reqwest::{
-    Client,
-};
 
 use crate::{
     album::{
@@ -56,7 +53,6 @@ struct NextPaging {
 
 fn crawl_albums_tracks_thread(
     albums_crawled: Receiver<Vec<AlbumCsv>>,
-    client: Arc<Client>,
     client_ring: Arc<RwLock<ClientRing>>,
     sender: Sender<TrackCsv>,
     progress: Arc<ProgressBar>,
@@ -71,7 +67,6 @@ fn crawl_albums_tracks_thread(
 
             loop_until_ok(
                 &get_albums,
-                client.clone(),
                 client_ring.clone(),
                 albums_ids,
             ).unwrap_or_else(|err| {
@@ -117,7 +112,6 @@ fn crawl_albums_tracks_thread(
                 let origin_album = next_paging.origin_album.clone();
                 loop_until_ok(
                     &get_next_paging,
-                    client.clone(),
                     client_ring.clone(),
                     &next_paging.url[..],
                 ).map(|paging| {
@@ -157,7 +151,6 @@ fn crawl_albums_tracks_thread(
 
 pub fn track_crawl(
     albums_crawled: Receiver<Vec<AlbumCsv>>,
-    client: Arc<Client>,
     client_ring: Arc<RwLock<ClientRing>>,
     sender: Sender<TrackCsv>,
 ) -> thread::Result<()> {
@@ -177,7 +170,6 @@ pub fn track_crawl(
     let threads: Vec<thread::JoinHandle<()>> = (0..num_threads).map(|_| {
         crawl_albums_tracks_thread(
             albums_crawled.clone(),
-            client.clone(),
             client_ring.clone(),
             sender.clone(),
             progress.clone(),
@@ -191,7 +183,6 @@ pub fn track_crawl(
 
 #[allow(dead_code)]
 pub fn track_crawl_main(
-    client: Arc<Client>,
     client_ring: Arc<RwLock<ClientRing>>,
 ) {
     let (album_sender, album_receiver) = channel::unbounded();
@@ -203,7 +194,7 @@ pub fn track_crawl_main(
     });
 
     let crawler_thread = thread::spawn(move || {
-        track_crawl(album_receiver, client, client_ring, track_sender)
+        track_crawl(album_receiver, client_ring, track_sender)
             .expect("Error in crawling tracks");
     });
 

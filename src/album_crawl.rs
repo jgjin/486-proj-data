@@ -19,9 +19,6 @@ use indicatif::{
     ProgressStyle,
 };
 use num_cpus;
-use reqwest::{
-    Client,
-};
 
 use crate::{
     album_types::{
@@ -50,7 +47,6 @@ use crate::{
 
 fn crawl_artists_albums_thread(
     artists_crawled: Receiver<ArtistCsv>,
-    client: Arc<Client>,
     client_ring: Arc<RwLock<ClientRing>>,
     sender: Sender<AlbumCsv>,
     progress: Arc<ProgressBar>,
@@ -59,7 +55,6 @@ fn crawl_artists_albums_thread(
         while let Some(artist_csv) = artists_crawled.recv().ok() {
             let (mut items, mut next) = loop_until_ok(
                 &get_artist_albums,
-                client.clone(),
                 client_ring.clone(),
                 &artist_csv.id[..],
             ).map(|paging| {
@@ -95,7 +90,6 @@ fn crawl_artists_albums_thread(
                 let (items_new, next_new) = next.map(|next_paging_url| {
                     loop_until_ok(
                         &get_next_paging,
-                        client.clone(),
                         client_ring.clone(),
                         &next_paging_url[..],
                     ).map(|paging| {
@@ -121,7 +115,6 @@ fn crawl_artists_albums_thread(
 
 pub fn album_crawl(
     artists_crawled: Receiver<ArtistCsv>,
-    client: Arc<Client>,
     client_ring: Arc<RwLock<ClientRing>>,
     sender: Sender<AlbumCsv>,
 ) -> thread::Result<()> {
@@ -141,7 +134,6 @@ pub fn album_crawl(
     let threads: Vec<thread::JoinHandle<()>> = (0..num_threads).map(|_| {
         crawl_artists_albums_thread(
             artists_crawled.clone(),
-            client.clone(),
             client_ring.clone(),
             sender.clone(),
             progress.clone(),
@@ -158,7 +150,6 @@ pub fn album_crawl(
 
 #[allow(dead_code)]
 pub fn album_crawl_main(
-    client: Arc<Client>,
     client_ring: Arc<RwLock<ClientRing>>,
 ) {
     let (artist_sender, artist_receiver) = channel::unbounded();
@@ -170,7 +161,7 @@ pub fn album_crawl_main(
     });
 
     let crawler_thread = thread::spawn(move || {
-        album_crawl(artist_receiver, client, client_ring, album_sender)
+        album_crawl(artist_receiver, client_ring, album_sender)
             .expect("Error in crawling tracks");
     });
 

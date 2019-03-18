@@ -28,9 +28,6 @@ use indicatif::{
     ProgressStyle,
 };
 use num_cpus;
-use reqwest::{
-    Client,
-};
 
 use crate::{
     artist::{
@@ -58,7 +55,6 @@ fn crawl_related_artists_thread(
     crawled: Arc<CHashMap<String, ()>>,
     num_processed: Arc<AtomicUsize>,
     limit: usize,
-    client: Arc<Client>,
     client_ring: Arc<RwLock<ClientRing>>,
     sender: Sender<ArtistCsv>,
     progress: Arc<ProgressBar>,
@@ -70,7 +66,6 @@ fn crawl_related_artists_thread(
             queue.pop().map(|artist| {
                 loop_until_ok(
                     &get_artist_related_artists,
-                    client.clone(),
                     client_ring.clone(),
                     &artist.id[..],
                 ).unwrap_or_else(|err| {
@@ -116,7 +111,6 @@ fn crawl_related_artists_thread(
 pub fn artist_crawl(
     seeds: Vec<ArtistFull>,
     limit: usize,
-    client: Arc<Client>,
     client_ring: Arc<RwLock<ClientRing>>,
     sender: Sender<ArtistCsv>,
 ) -> thread::Result<CHashMap<String, ()>> {
@@ -142,7 +136,6 @@ pub fn artist_crawl(
             crawled.clone(),
             num_processed.clone(),
             limit,
-            client.clone(),
             client_ring.clone(),
             sender.clone(),
             progress.clone(),
@@ -160,14 +153,13 @@ pub fn artist_crawl(
 #[allow(dead_code)]
 pub fn artist_crawl_main(
     limit: usize,
-    client: Arc<Client>,
     client_ring: Arc<RwLock<ClientRing>>,
 ) {
     let (artist_sender, artist_receiver) = channel::unbounded();
     
     let seed_artists: Vec<ArtistFull> = lines_from_file("seed_artists.txt")
         .expect("Error in reading seed artists").into_iter().map(|name| {
-            search_artists(client.clone(), client_ring.clone(), &name[..])
+            search_artists(client_ring.clone(), &name[..])
                 .expect("Error in searching artists")
                 .items.drain(..).next().expect("No artists found")
         }).collect();
@@ -176,7 +168,6 @@ pub fn artist_crawl_main(
         artist_crawl(
             seed_artists,
             limit,
-            client,
             client_ring,
             artist_sender,
         ).expect("Error in crawling artists");

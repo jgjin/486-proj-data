@@ -21,7 +21,6 @@ use std::{
 };
 
 use reqwest::{
-    Client,
     Response,
     StatusCode,
     header::{
@@ -70,7 +69,6 @@ impl Error for SimpleError {
 pub fn search(
     query: &str,
     type_: &str,
-    client: Arc<Client>,
     client_ring: Arc<RwLock<ClientRing>>,
 ) -> Result<Response, Box<dyn Error>> {
     get_with_retry(
@@ -79,19 +77,18 @@ pub fn search(
             query.replace(" ", "%20"),
             type_,
         )[..],
-        client,
         client_ring,
     )
 }
 
 pub fn get_with_retry(
     url: &str,
-    client: Arc<Client>,
     client_ring: Arc<RwLock<ClientRing>>,
 ) -> Result<Response, Box<dyn Error>> {
     debug!("Getting URL {}", url);
+    let (client, token) = client_ring.read().expect("client ring RwLock poisoned").front();
     let response = client.get(url)
-        .bearer_auth(client_ring.read().expect("client ring RwLock poisoned").front())
+        .bearer_auth(token)
         .send().map_err(|err| {
             format!("Error for {}: {}", url, err)
         })?;
@@ -105,7 +102,7 @@ pub fn get_with_retry(
                     (*client_ring.write().expect("client ring RwLock poisoned")).sleep_front_and_get_next(
                         duration.parse::<u64>().expect("Unexpected format in retry-after header")
                     );
-                    get_with_retry(url, client, client_ring)
+                    get_with_retry(url, client_ring)
                 },
                 None => Err(Box::new(SimpleError {
                     message: "No retry-after header".to_string(),
@@ -114,7 +111,7 @@ pub fn get_with_retry(
         },
         StatusCode::UNAUTHORIZED => {
             (*client_ring.write().expect("client ring RwLock poisoned")).refresh_front_and_get_next();
-            get_with_retry(url, client, client_ring)
+            get_with_retry(url, client_ring)
         },
         status_code => Err(Box::new(SimpleError {
             message: format!("Unexpected error code: {}", status_code)
@@ -123,14 +120,12 @@ pub fn get_with_retry(
 }
 
 pub fn get_next_paging<D: DeserializeOwned>(
-    client: Arc<Client>,
     client_ring: Arc<RwLock<ClientRing>>,
     url: &str,
 ) -> Result<Paging<D>, Box<dyn Error>> {
     Ok(
         get_with_retry(
             url,
-            client,
             client_ring,
         )?.json()?
     )
@@ -138,16 +133,13 @@ pub fn get_next_paging<D: DeserializeOwned>(
 
 pub fn loop_until_ok<Input: Clone, OkReturn>(
     api_endpoint: &Fn(
-        Arc<Client>,
         Arc<RwLock<ClientRing>>,
         Input,
     ) -> Result<OkReturn, Box<dyn Error>>, 
-    client: Arc<Client>,
     client_ring: Arc<RwLock<ClientRing>>,
     input: Input,
 ) -> Result<OkReturn, Box<dyn Error>> {
     api_endpoint(
-        client.clone(),
         client_ring.clone(),
         input.clone(),
     ).or_else(|_| {
@@ -155,7 +147,6 @@ pub fn loop_until_ok<Input: Clone, OkReturn>(
         thread::sleep(Duration::from_secs(3));
         loop_until_ok(
             api_endpoint,
-            client,
             client_ring,
             input,
         )

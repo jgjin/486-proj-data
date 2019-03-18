@@ -8,10 +8,6 @@ use std::{
     },
 };
 
-use reqwest::{
-    Client,
-};
-
 use crate::{
     album_types::{
         AlbumFull,
@@ -33,35 +29,30 @@ use crate::{
 };
 
 pub fn get_album(
-    client: Arc<Client>,
     client_ring: Arc<RwLock<ClientRing>>,
     album_id: &str,
 ) -> Result<AlbumFull, Box<dyn Error>> {
     Ok(
         get_with_retry(
             &format!("https://api.spotify.com/v1/albums/{}/", album_id)[..],
-            client,
             client_ring,
         )?.json()?
     )
 }
 
 pub fn get_album_tracks(
-    client: Arc<Client>,
     client_ring: Arc<RwLock<ClientRing>>,
     album_id: &str,
 ) -> Result<Paging<TrackSimple>, Box<dyn Error>> {
     Ok(
         get_with_retry(
             &format!("https://api.spotify.com/v1/albums/{}/tracks/", album_id)[..],
-            client,
             client_ring,
         )?.json()?
     )
 }
 
 pub fn get_albums(
-    client: Arc<Client>,
     client_ring: Arc<RwLock<ClientRing>>,
     album_ids: Vec<&str>,
 ) -> Result<Vec<AlbumFull>, Box<dyn Error>> {
@@ -71,7 +62,6 @@ pub fn get_albums(
                 "https://api.spotify.com/v1/albums/?ids={}",
                 album_ids.join(","),
             )[..],
-            client,
             client_ring,
         )?.json::<serde_json::Value>()
             .expect("Error parsing JSON in album::get_albums")
@@ -85,13 +75,12 @@ pub fn get_albums(
 }
 
 pub fn search_albums(
-    client: Arc<Client>,
     client_ring: Arc<RwLock<ClientRing>>,
     query: &str,
 ) -> Result<Paging<AlbumSimple>, Box<dyn Error>> {
     Ok(
         serde_json::from_value(
-            search(query, "album", client, client_ring)?
+            search(query, "album", client_ring)?
                 .json::<serde_json::Value>()
                 .expect("Error parsing JSON in album::search_albums")
                 .get("albums").expect("Error in album::search_albums format")
