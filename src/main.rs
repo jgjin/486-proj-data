@@ -24,6 +24,7 @@ mod io;
 mod test;
 mod track;
 mod track_crawl;
+mod track_crawl_2;
 mod track_types;
 mod utils;
 
@@ -34,17 +35,21 @@ use std::{
     },
 };
 
+use reqwest::{
+    Client,
+};
+
 fn main(
 ) {
     pretty_env_logger::init();
 
+    let client = Client::new();
+    
     let client_ring = Arc::new(RwLock::new(
-        client::ClientRing::init().expect("Error in initializing client ring")
+        client::ClientRing::init(client).expect("Error in initializing client ring")
     ));
 
-    // artist_crawl::artist_crawl_main(100100, client.clone(), client_ring.clone());
+    artist_crawl::artist_crawl_main(10, client_ring.clone());
 
-    // album_crawl::album_crawl_main(client.clone(), client_ring.clone());
-
-    // track_crawl::track_crawl_main(client, client_ring);
+    track_crawl_2::track_crawl_main(client_ring);
 }
