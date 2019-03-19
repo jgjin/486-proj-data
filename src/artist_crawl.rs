@@ -62,7 +62,8 @@ fn crawl_related_artists_thread(
     thread::spawn(move || {
         let mut sleep_period = 1;
 
-        while num_processed.load(Ordering::SeqCst) < limit {
+        while num_processed.load(Ordering::SeqCst) < limit &&
+            !queue.is_empty() {
             queue.pop().map(|artist| {
                 loop_until_ok(
                     &get_artist_related_artists,
@@ -76,7 +77,8 @@ fn crawl_related_artists_thread(
                     );
                     vec![]
                 }).into_iter().map(|artist_full| {
-                    if !crawled.contains_key(&artist_full.id) {
+                    if !crawled.contains_key(&artist_full.id) &&
+                        !artist_full.genres.is_empty() {
                         crawled.insert(artist_full.id.clone(), ());
                         queue.push(artist_full);
                     }
@@ -104,6 +106,12 @@ fn crawl_related_artists_thread(
                 thread::sleep(Duration::from_secs(sleep_period));
                 sleep_period *= 2;
             })
+        }
+        if queue.is_empty() {
+            error!(
+                "Exhaused queue after {} entries",
+                num_processed.load(Ordering::SeqCst),
+            );
         }
     })
 }

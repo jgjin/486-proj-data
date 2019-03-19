@@ -43,13 +43,11 @@ fn main(
 ) {
     pretty_env_logger::init();
 
-    let client = Client::new();
-    
     let client_ring = Arc::new(RwLock::new(
-        client::ClientRing::init(client).expect("Error in initializing client ring")
+        client::ClientRing::init(Client::new()).expect("Error in initializing client ring")
     ));
 
-    artist_crawl::artist_crawl_main(10, client_ring.clone());
+    artist_crawl::artist_crawl_main(100100, client_ring.clone());
 
     track_crawl_2::track_crawl_main(client_ring);
 }
