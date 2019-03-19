@@ -66,8 +66,7 @@ fn crawl_artists_tracks_thread(
             }).into_iter().map(|track_full| {
                 sender.send(TrackCsv2::extract_from(
                     track_full,
-                    artist_csv.id.clone(),
-                    artist_csv.genres.clone(),
+                    &artist_csv,
                 )).map_err(|err| SimpleError {
                     message: err.to_string(),
                 }.into())

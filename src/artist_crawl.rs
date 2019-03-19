@@ -109,7 +109,7 @@ fn crawl_related_artists_thread(
         }
         if queue.is_empty() {
             error!(
-                "Exhaused queue after {} entries",
+                "Exhausted queue after {} entries",
                 num_processed.load(Ordering::SeqCst),
             );
         }

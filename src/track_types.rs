@@ -12,6 +12,7 @@ use crate::{
         AlbumSimple,
     },
     artist_types::{
+        ArtistCsv,
         ArtistSimple,
     },
 };
@@ -156,28 +157,29 @@ impl TrackCsv {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct TrackCsv2 {
     pub origin_album: String,
-    // pub track_number: i32,
+    pub origin_album_name: String,
     pub origin_artist: String,
+    pub origin_artist_name: String,
     pub origin_artist_genres: String,
-    // pub duration_ms: i32,
-    pub id: String,
-    pub name: String,
-    pub popularity: i32,
+    pub track_id: String,
+    pub track_name: String,
+    pub track_popularity: i32,
 }
 
 impl TrackCsv2 {
     pub fn extract_from(
         track_full: TrackFull,
-        origin_artist: String,
-        origin_artist_genres: String,
+        origin_artist: &ArtistCsv,
     ) -> Self {
         Self {
             origin_album: track_full.album.id,
-            origin_artist: origin_artist,
-            origin_artist_genres: origin_artist_genres,
-            id: track_full.id,
-            name: track_full.name,
-            popularity: track_full.popularity,
+            origin_album_name: track_full.album.name,
+            origin_artist: origin_artist.id.clone(),
+            origin_artist_name: origin_artist.name.clone(),
+            origin_artist_genres: origin_artist.genres.clone(),
+            track_id: track_full.id,
+            track_name: track_full.name,
+            track_popularity: track_full.popularity,
         }
     }
 }
