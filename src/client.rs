@@ -28,7 +28,9 @@ use atomicring::{
 };
 use reqwest::{
     self,
+    // r#async::{
     Client,
+    // },
 };
 use serde::{
     Deserialize,

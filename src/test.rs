@@ -6,7 +6,9 @@ use std::{
 };
 
 use reqwest::{
+    // r#async::{
     Client,
+    // },
 };
 
 use crate::{

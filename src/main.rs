@@ -3,9 +3,11 @@ extern crate chashmap;
 extern crate crossbeam_channel;
 extern crate crossbeam_queue;
 extern crate csv;
+extern crate futures;
 extern crate indicatif;
 extern crate itertools;
 #[macro_use] extern crate log;
+extern crate num;
 extern crate num_cpus;
 extern crate pretty_env_logger;
 extern crate reqwest;
@@ -20,6 +22,7 @@ mod artist_crawl;
 mod artist_types;
 mod client;
 mod common_types;
+mod feature_crawl;
 mod io;
 mod test;
 mod track;
@@ -36,18 +39,23 @@ use std::{
 };
 
 use reqwest::{
+    // r#async::{
     Client,
+    // },
 };
 
 fn main(
 ) {
     pretty_env_logger::init();
 
+    // options for proxies
     let client_ring = Arc::new(RwLock::new(
         client::ClientRing::init(Client::new()).expect("Error in initializing client ring")
     ));
 
-    artist_crawl::artist_crawl_main(100100, client_ring.clone());
+    // artist_crawl::artist_crawl_main(111111, client_ring.clone());
 
-    track_crawl_2::track_crawl_main(client_ring);
+    track_crawl_2::track_crawl_main(client_ring.clone());
+
+    feature_crawl::feature_crawl_main(client_ring);
 }

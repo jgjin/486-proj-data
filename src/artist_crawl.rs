@@ -62,6 +62,7 @@ fn crawl_related_artists_thread(
     thread::spawn(move || {
         let mut sleep_period = 1;
 
+        // redo time out strat
         while num_processed.load(Ordering::SeqCst) < limit &&
             !queue.is_empty() {
             queue.pop().map(|artist| {
