@@ -50,7 +50,7 @@ fn main(
 
     // options for proxies
     let client_ring = Arc::new(RwLock::new(
-        client::ClientRing::init(Client::new()).expect("Error in initializing client ring")
+        client::ClientRing::init(Client::new(), false).expect("Error in initializing client ring")
     ));
 
     // artist_crawl::artist_crawl_main(111111, client_ring.clone());

@@ -30,6 +30,7 @@ use reqwest::{
     self,
     // r#async::{
     Client,
+    ClientBuilder,
     // },
 };
 use serde::{
@@ -62,7 +63,7 @@ struct SpotifyClientMetadata {
 struct SpotifyClientWithProxy {
     pub client_metadata: SpotifyClientMetadata,
     pub client: Client,
-    pub proxy: Proxy,
+    pub proxy: Option<Proxy>,
     pub token: String,
 }
 
@@ -70,14 +71,17 @@ impl SpotifyClientWithProxy {
     pub fn init(
         token_client: &Client,
         client_metadata: SpotifyClientMetadata,
-        proxy: Proxy,
+        proxy_opt: Option<Proxy>,
     ) -> reqwest::Result<Self> {
-        let proxy_netloc = format!("http://{}:{}", proxy.ip_address, proxy.port);
-        info!("Using {} for {} client", proxy_netloc, client_metadata.name);
-
-        let proxy_client = Client::builder()
-            .proxy(reqwest::Proxy::all(&proxy_netloc[..])?)
-            .build()?;
+        let builder = proxy_opt.clone().map(|proxy| -> reqwest::Result<ClientBuilder> {
+            let proxy_netloc = format!("http://{}:{}", proxy.ip_address, proxy.port);
+            info!("Using {} for {} client", proxy_netloc, client_metadata.name);
+            Ok(
+                Client::builder().proxy(reqwest::Proxy::all(&proxy_netloc[..])?)
+            )
+        }).unwrap_or(Ok(Client::builder()))?;
+            
+        let proxy_client = builder.build()?;
 
         info!("Retrieving API token for {} client", client_metadata.name);
         let token = retrieve_access_token(
@@ -90,7 +94,7 @@ impl SpotifyClientWithProxy {
         Ok(Self {
             client_metadata: client_metadata,
             client: proxy_client,
-            proxy: proxy,
+            proxy: proxy_opt,
             token: token,
         })
     }
@@ -106,31 +110,38 @@ pub struct ClientRing {
     token_client: Client,
     current_client: SpotifyClientWithProxy,
     client_ring: Arc<AtomicRingQueue<SpotifyClientWithProxy>>,
-    proxies: Arc<AtomicRingQueue<Proxy>>,
+    proxies: Arc<AtomicRingQueue<Option<Proxy>>>,
 }
 
 impl ClientRing {
     pub fn init(
         token_client: Client,
+        use_proxies: bool,
     ) -> Result<Self, Box<dyn Error>> {
         let clients_metadata = structs_from_file::<SpotifyClientMetadata>("clients.csv")?;
-        let proxies = structs_from_file::<Proxy>("proxies.csv")?;
+        let clients_metadata_len = clients_metadata.len();
 
-        let client_metadata_len = clients_metadata.len();
+        let mut proxies = vec![None];
+        if use_proxies {
+            proxies = structs_from_file::<Proxy>("proxies.csv")?.into_iter().map(|proxy| {
+                Some(proxy)
+            }).collect();
+        }
+
         let mut clients_with_proxies = clients_metadata.into_iter().zip(
-            proxies.iter().cloned().cycle().take(client_metadata_len),
+            proxies.iter().cloned().cycle().take(clients_metadata_len),
         ).map(|(client_metadata, proxy)| {
             SpotifyClientWithProxy::init(&token_client, client_metadata, proxy)
         }).collect::<reqwest::Result<Vec<SpotifyClientWithProxy>>>()?;
 
         let current_client = clients_with_proxies.pop().expect("Empty clients or proxies");
-        let client_ring = Arc::new(AtomicRingQueue::with_capacity(client_metadata_len * 2));
+        let client_ring = Arc::new(AtomicRingQueue::with_capacity(clients_metadata_len * 2));
         clients_with_proxies.into_iter().map(|client_with_proxy| {
             client_ring.push_overwrite(client_with_proxy);
         }).last();
         
         let proxies_queue = Arc::new(AtomicRingQueue::with_capacity(
-            (client_metadata_len + proxies.len()) * 2,
+            (clients_metadata_len + proxies.len()) * 2,
         ));
         proxies.into_iter().map(|proxy| { proxies_queue.push_overwrite(proxy); }).last();
 
