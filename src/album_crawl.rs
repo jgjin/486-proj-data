@@ -14,11 +14,21 @@ use crossbeam_channel::{
     Receiver,
     Sender,
 };
+use futures::{
+    Future,
+};
 use indicatif::{
     ProgressBar,
     ProgressStyle,
 };
 use num_cpus;
+use tokio::{
+    runtime::{
+        current_thread::{
+            Runtime,
+        },
+    },
+};
 
 use crate::{
     album_types::{
@@ -52,14 +62,16 @@ fn crawl_artists_albums_thread(
     progress: Arc<ProgressBar>,
 ) -> thread::JoinHandle<()> {
     thread::spawn(move || {
+        let mut rt = Runtime::new().expect("No tokio runtime");
+        
         while let Some(artist_csv) = artists_crawled.recv().ok() {
-            let (mut items, mut next) = loop_until_ok(
+            let (mut items, mut next) = rt.block_on(loop_until_ok(
                 &get_artist_albums,
                 client_ring.clone(),
-                &artist_csv.id[..],
+                artist_csv.id.clone(),
             ).map(|paging| {
                 (Some(paging.items), paging.next)
-            }).unwrap_or_else(|err| {
+            })).unwrap_or_else(|err| {
                 error!(
                     "Unexpected error in artist::get_artist_albums for {}: {}",
                     artist_csv.id,
@@ -88,13 +100,13 @@ fn crawl_artists_albums_thread(
                 });
 
                 let (items_new, next_new) = next.map(|next_paging_url| {
-                    loop_until_ok(
+                    rt.block_on(loop_until_ok(
                         &get_next_paging,
                         client_ring.clone(),
-                        &next_paging_url[..],
+                        next_paging_url.clone(),
                     ).map(|paging| {
                         (Some(paging.items), paging.next)
-                    }).unwrap_or_else(|err| {
+                    })).unwrap_or_else(|err| {
                         error!(
                             "Unexpected error in getting next paging with URL {}: {}",
                             next_paging_url,

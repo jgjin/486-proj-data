@@ -14,11 +14,21 @@ use crossbeam_channel::{
     Receiver,
     Sender,
 };
+use futures::{
+    Future,
+};
 use indicatif::{
     ProgressBar,
     ProgressStyle,
 };
 use num_cpus;
+use tokio::{
+    runtime::{
+        current_thread::{
+            Runtime,
+        },
+    },
+};
 
 use crate::{
     album::{
@@ -58,18 +68,20 @@ fn crawl_albums_tracks_thread(
     progress: Arc<ProgressBar>,
 ) -> thread::JoinHandle<()> {
     thread::spawn(move || {
+        let mut rt = Runtime::new().expect("No tokio runtime");
+
         while let Some(albums_csv) = albums_crawled.recv().ok() {
             let mut next_pagings = Vec::new();
 
             let albums_ids = albums_csv.iter().map(|album_csv| {
-                &album_csv.id[..]
+                album_csv.id.clone()
             }).collect();
 
-            loop_until_ok(
+            rt.block_on(loop_until_ok(
                 &get_albums,
                 client_ring.clone(),
                 albums_ids,
-            ).unwrap_or_else(|err| {
+            )).unwrap_or_else(|err| {
                 error!(
                     "Unexpected error in album::get_albums_loop_until_ok : {}",
                     err,
@@ -110,10 +122,10 @@ fn crawl_albums_tracks_thread(
 
             while let Some(next_paging) = next_pagings.pop() {
                 let origin_album = next_paging.origin_album.clone();
-                loop_until_ok(
+                rt.block_on(loop_until_ok(
                     &get_next_paging,
                     client_ring.clone(),
-                    &next_paging.url[..],
+                    next_paging.url.clone(),
                 ).map(|paging| {
                     paging.next.map(|next_url| {
                         next_pagings.push(NextPaging{
@@ -137,7 +149,7 @@ fn crawl_albums_tracks_thread(
                             err,
                         );
                     });
-                }).unwrap_or_else(|err| {
+                })).unwrap_or_else(|err| {
                     error!(
                         "Unexpected error in getting next paging with URL {}: {}",
                         next_paging.url,

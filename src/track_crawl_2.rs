@@ -19,6 +19,13 @@ use indicatif::{
     ProgressStyle,
 };
 use num_cpus;
+use tokio::{
+    runtime::{
+        current_thread::{
+            Runtime,
+        },
+    },
+};
 
 use crate::{
     artist::{
@@ -51,12 +58,14 @@ fn crawl_artists_tracks_thread(
     progress: Arc<ProgressBar>,
 ) -> thread::JoinHandle<()> {
     thread::spawn(move || {
+        let mut rt = Runtime::new().expect("No tokio runtime");
+
         while let Some(artist_csv) = artists_crawled.recv().ok() {
-            loop_until_ok(
+            rt.block_on(loop_until_ok(
                 &get_artist_top_tracks,
                 client_ring.clone(),
-                &artist_csv.id[..],
-            ).unwrap_or_else(|err| {
+                artist_csv.id.clone(),
+            )).unwrap_or_else(|err| {
                 error!(
                     "Unexpected error in artist::get_artist_top_tracks for {}: {}",
                     artist_csv.id,

@@ -26,16 +26,26 @@ use std::{
 use atomicring::{
     AtomicRingQueue,
 };
+use futures::{
+    Future,
+};
 use reqwest::{
     self,
-    // r#async::{
-    Client,
-    ClientBuilder,
-    // },
+    r#async::{
+        Client,
+        ClientBuilder,
+    },
 };
 use serde::{
     Deserialize,
     Serialize,
+};
+use tokio::{
+    runtime::{
+        current_thread::{
+            Runtime,
+        },
+    },
 };
 
 use crate::{
@@ -84,11 +94,13 @@ impl SpotifyClientWithProxy {
         let proxy_client = builder.build()?;
 
         info!("Retrieving API token for {} client", client_metadata.name);
-        let token = retrieve_access_token(
+
+        let mut rt = Runtime::new().expect("No tokio runtime");
+        let token = rt.block_on(retrieve_access_token(
             token_client,
             &client_metadata.id[..],
             &client_metadata.secret[..],
-        )?.access_token;
+        ))?.access_token;
         info!("Using token {} for {} client", token, client_metadata.name);
 
         Ok(Self {
@@ -200,15 +212,14 @@ fn retrieve_access_token(
     client: &Client,
     id: &str,
     secret: &str,
-) -> reqwest::Result<AccessToken> {
+) -> impl Future<Item = AccessToken, Error = reqwest::Error> {
     let mut form_data = HashMap::new();
     form_data.insert("grant_type", "client_credentials");
-
-    Ok(
-        client.post("https://accounts.spotify.com/api/token/")
-            .basic_auth(id, Some(secret))
-            .form(&form_data)
-            .send()?
-            .json()?
-    )
+    
+    client.post("https://accounts.spotify.com/api/token/")
+        .basic_auth(id, Some(secret))
+        .form(&form_data)
+        .send().and_then(|mut response| {
+            response.json()
+        })
 }

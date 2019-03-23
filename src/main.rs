@@ -13,6 +13,7 @@ extern crate pretty_env_logger;
 extern crate reqwest;
 extern crate serde;
 extern crate serde_json;
+extern crate tokio;
 
 mod album;
 mod album_crawl;
@@ -39,9 +40,9 @@ use std::{
 };
 
 use reqwest::{
-    // r#async::{
-    Client,
-    // },
+    r#async::{
+        Client,
+    },
 };
 
 fn main(
@@ -50,12 +51,12 @@ fn main(
 
     // options for proxies
     let client_ring = Arc::new(RwLock::new(
-        client::ClientRing::init(Client::new(), false).expect("Error in initializing client ring")
+        client::ClientRing::init(Client::new(), true).expect("Error in initializing client ring")
     ));
 
-    // artist_crawl::artist_crawl_main(111111, client_ring.clone());
+    artist_crawl::artist_crawl_main(25, client_ring.clone());
 
-    track_crawl_2::track_crawl_main(client_ring.clone());
+    // track_crawl_2::track_crawl_main(client_ring.clone());
 
-    feature_crawl::feature_crawl_main(client_ring);
+    // feature_crawl::feature_crawl_main(client_ring);
 }

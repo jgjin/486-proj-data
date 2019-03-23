@@ -28,6 +28,13 @@ use indicatif::{
     ProgressStyle,
 };
 use num_cpus;
+use tokio::{
+    runtime::{
+        current_thread::{
+            Runtime,
+        },
+    },
+};
 
 use crate::{
     artist::{
@@ -61,16 +68,15 @@ fn crawl_related_artists_thread(
 ) -> thread::JoinHandle<()> {
     thread::spawn(move || {
         let mut sleep_period = 1;
-
-        // redo time out strat
-        while num_processed.load(Ordering::SeqCst) < limit &&
-            !queue.is_empty() {
+        let mut rt = Runtime::new().expect("No tokio runtime");
+        
+        while num_processed.load(Ordering::SeqCst) < limit {
             queue.pop().map(|artist| {
-                loop_until_ok(
+                rt.block_on(loop_until_ok(
                     &get_artist_related_artists,
                     client_ring.clone(),
-                    &artist.id[..],
-                ).unwrap_or_else(|err| {
+                    artist.id.clone(),
+                )).unwrap_or_else(|err| {
                     error!(
                         "Unexpected error in artist::get_artist_related_artists for {}: {}",
                         artist.id,
@@ -80,9 +86,9 @@ fn crawl_related_artists_thread(
                 }).into_iter().map(|artist_full| {
                     if !crawled.contains_key(&artist_full.id) &&
                         !artist_full.genres.is_empty() {
-                        crawled.insert(artist_full.id.clone(), ());
-                        queue.push(artist_full);
-                    }
+                            crawled.insert(artist_full.id.clone(), ());
+                            queue.push(artist_full);
+                        }
                 }).last();
 
                 let artist_id = artist.id.clone();
@@ -99,20 +105,16 @@ fn crawl_related_artists_thread(
                     num_processed.fetch_add(1, Ordering::SeqCst);
                     progress.inc(1);
                 }
+
+                sleep_period = 1;
             }).unwrap_or_else(|_| {
                 if sleep_period > 8 {
-                    panic!("Timed out before 0 remaining");
+                    panic!("Timed out queue");
                 }
 
                 thread::sleep(Duration::from_secs(sleep_period));
                 sleep_period *= 2;
             })
-        }
-        if queue.is_empty() {
-            error!(
-                "Exhausted queue after {} entries",
-                num_processed.load(Ordering::SeqCst),
-            );
         }
     })
 }
@@ -164,11 +166,13 @@ pub fn artist_crawl_main(
     limit: usize,
     client_ring: Arc<RwLock<ClientRing>>,
 ) {
+    let mut rt = Runtime::new().expect("No tokio runtime");
+
     let (artist_sender, artist_receiver) = channel::unbounded();
     
     let seed_artists: Vec<ArtistFull> = lines_from_file("seed_artists.txt")
         .expect("Error in reading seed artists").into_iter().map(|name| {
-            search_artists(client_ring.clone(), &name[..])
+            rt.block_on(search_artists(client_ring.clone(), name))
                 .expect("Error in searching artists")
                 .items.drain(..).next().expect("No artists found")
         }).collect();

@@ -20,9 +20,15 @@ use std::{
     },
 };
 
+use futures::{
+    future,
+    Future,
+};
 use reqwest::{
-    Response,
     StatusCode,
+    r#async::{
+        Response,
+    },
     header::{
         RETRY_AFTER,
     },
@@ -34,6 +40,13 @@ use serde::{
 };
 use serde_json::{
     Value,
+};
+use tokio::{
+    runtime::{
+        current_thread::{
+            Runtime,
+        },
+    },
 };
 
 use crate::{
@@ -66,91 +79,102 @@ impl Error for SimpleError {
     }
 }
 
-pub fn search(
-    query: &str,
+type CustomFuture<T> = Box<Future<Item = T, Error = Box<SimpleError>>>;
+
+pub fn search<D: 'static + DeserializeOwned>(
+    query: String,
     type_: &str,
     client_ring: Arc<RwLock<ClientRing>>,
-) -> Result<Response, Box<dyn Error>> {
-    get_with_retry(
-        &format!(
+) -> CustomFuture<D> {
+    get_with_retry::<D>(
+        format!(
             "https://api.spotify.com/v1/search/?q={}&type={}",
             query.replace(" ", "%20"),
             type_,
-        )[..],
+        ),
         client_ring,
     )
 }
 
-pub fn get_with_retry(
-    url: &str,
+pub fn get_with_retry<D: 'static + DeserializeOwned>(
+    url: String,
     client_ring: Arc<RwLock<ClientRing>>,
-) -> Result<Response, Box<dyn Error>> {
+) -> CustomFuture<D> {
     debug!("Getting URL {}", url);
     let (client, token) = client_ring.read().expect("client ring RwLock poisoned").front();
-    let response = client.get(url)
-        .bearer_auth(token)
-        .send().map_err(|err| {
-            format!("Error for {}: {}", url, err)
-        })?;
-    match response.status() {
-        StatusCode::OK => Ok(response),
-        StatusCode::TOO_MANY_REQUESTS => {
-            match response.headers().get(RETRY_AFTER) {
-                Some(header_value) => {
-                    let duration = header_value.to_str()
-                        .expect("Unexpected format in retry-after header");
-                    (*client_ring.write().expect("client ring RwLock poisoned")).sleep_front_and_get_next(
-                        duration.parse::<u64>().expect("Unexpected format in retry-after header")
-                    );
-                    get_with_retry(url, client_ring)
-                },
-                None => Err(Box::new(SimpleError {
-                    message: "No retry-after header".to_string(),
-                })),
-            }
-        },
-        StatusCode::UNAUTHORIZED => {
-            (*client_ring.write().expect("client ring RwLock poisoned")).refresh_front_and_get_next();
-            get_with_retry(url, client_ring)
-        },
-        status_code => Err(Box::new(SimpleError {
-            message: format!("Unexpected error code: {}", status_code)
-        })),
-    }
+    Box::new(
+        client.get(&url[..])
+            .header(reqwest::header::AUTHORIZATION, &*format!("Bearer {}", token))
+            .send().map_err(|err| SimpleError {
+                message: err.to_string(),
+            }.into()).and_then(|mut response| {
+                match response.status() {
+                    StatusCode::OK => Box::new(response.json::<D>().map_err(|err| SimpleError {
+                        message: err.to_string(),
+                    }.into())),
+                    StatusCode::TOO_MANY_REQUESTS => {
+                        match response.headers().get(RETRY_AFTER) {
+                            Some(header_value) => {
+                                let duration = header_value.to_str()
+                                    .expect("Unexpected format in retry-after header");
+                                (*client_ring.write().expect("client ring RwLock poisoned")).sleep_front_and_get_next(
+                                    duration.parse::<u64>().expect("Unexpected format in retry-after header")
+                                );
+                                get_with_retry::<D>(url, client_ring)
+                            },
+                            None => Box::new(future::err(Box::new(SimpleError {
+                                message: "No retry-after header".to_string(),
+                            }))),
+                        }
+                    },
+                    StatusCode::UNAUTHORIZED => {
+                        (*client_ring.write().expect("client ring RwLock poisoned")).refresh_front_and_get_next();
+                        get_with_retry::<D>(url, client_ring)
+                    },
+                    status_code => {
+                        Box::new(future::err(Box::new(SimpleError {
+                            message: format!("Unexpected error code: {}", status_code),
+                        })))
+                    },
+                }
+            })
+    )
 }
 
-pub fn get_next_paging<D: DeserializeOwned>(
+pub fn get_next_paging<D: 'static + DeserializeOwned>(
     client_ring: Arc<RwLock<ClientRing>>,
-    url: &str,
-) -> Result<Paging<D>, Box<dyn Error>> {
-    Ok(
+    url: String,
+) -> CustomFuture<Paging<D>> {
+    Box::new(
         get_with_retry(
             url,
             client_ring,
-        )?.json()?
+        )
     )
 }
 
 pub fn loop_until_ok<Input: Clone, OkReturn>(
-    api_endpoint: &Fn(
+    api_endpoint: &'static Fn(
         Arc<RwLock<ClientRing>>,
         Input,
-    ) -> Result<OkReturn, Box<dyn Error>>, 
+    ) -> CustomFuture<OkReturn>, 
     client_ring: Arc<RwLock<ClientRing>>,
     input: Input,
-) -> Result<OkReturn, Box<dyn Error>> {
-    api_endpoint(
-        client_ring.clone(),
-        input.clone(),
-    ).or_else(|_| {
-        info!("Error in utils::loop_until_ok, retrying");
-        thread::sleep(Duration::from_secs(3));
-        loop_until_ok(
-            api_endpoint,
-            client_ring,
-            input,
-        )
-    })
+) -> CustomFuture<OkReturn> {
+    Box::new(
+        api_endpoint(
+            client_ring.clone(),
+            input.clone(),
+        ).or_else(move |_| {
+            info!("Error in utils::loop_until_ok, retrying");
+            thread::sleep(Duration::from_secs(3));
+            loop_until_ok(
+                api_endpoint,
+                client_ring,
+                input,
+            )
+        })
+    )
 }
 
 
@@ -158,6 +182,8 @@ pub fn loop_until_ok<Input: Clone, OkReturn>(
 pub fn print_full_response(
     response: &mut Response,
 ) {
+    let mut rt = Runtime::new().expect("No tokio runtime");
+
     println!("url: {}", response.url().as_str());
     println!("status: {}", response.status());
     response.headers().iter().map(|header| {
@@ -167,9 +193,9 @@ pub fn print_full_response(
             header.1.to_str().unwrap_or("<contains non-ASCII chars>"),
         );
     }).last();
-    response.json().map(|json: Value| {
+    rt.block_on(response.json().map(|json: Value| {
         println!("{:?}", json);
-    }).unwrap_or_else(|_| {
+    })).unwrap_or_else(|_| {
         println!("response not json");
     });
 }
