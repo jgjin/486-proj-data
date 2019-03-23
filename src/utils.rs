@@ -100,7 +100,6 @@ pub fn get_with_retry<D: 'static + DeserializeOwned>(
     url: String,
     client_ring: Arc<RwLock<ClientRing>>,
 ) -> CustomFuture<D> {
-    debug!("Getting URL {}", url);
     let (client, token) = client_ring.read().expect("client ring RwLock poisoned").front();
     Box::new(
         client.get(&url[..])

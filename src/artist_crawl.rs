@@ -1,18 +1,18 @@
 use std::{
     sync::{
-        atomic::{
-            AtomicUsize,
-            Ordering,
-        },
+        // atomic::{
+        //     AtomicUsize,
+        //     Ordering,
+        // },
         Arc,
         RwLock,
     },
     thread,
-    time::{
-        Duration,
-    },
 };
 
+use atomicring::{
+    AtomicRingQueue,
+};
 use chashmap::{
     CHashMap,
 };
@@ -20,14 +20,14 @@ use crossbeam_channel::{
     self as channel,
     Sender,
 };
-use crossbeam_queue::{
-    SegQueue,
+use futures::{
+    future,
+    Future,
 };
 use indicatif::{
     ProgressBar,
     ProgressStyle,
 };
-use num_cpus;
 use tokio::{
     runtime::{
         current_thread::{
@@ -54,111 +54,84 @@ use crate::{
     },
     utils::{
         loop_until_ok,
+        SimpleError,
     },
 };
 
-fn crawl_related_artists_thread(
-    queue: Arc<SegQueue<ArtistFull>>,
-    crawled: Arc<CHashMap<String, ()>>,
-    num_processed: Arc<AtomicUsize>,
-    limit: usize,
-    client_ring: Arc<RwLock<ClientRing>>,
-    sender: Sender<ArtistCsv>,
-    progress: Arc<ProgressBar>,
-) -> thread::JoinHandle<()> {
-    thread::spawn(move || {
-        let mut sleep_period = 1;
-        let mut rt = Runtime::new().expect("No tokio runtime");
-        
-        while num_processed.load(Ordering::SeqCst) < limit {
-            queue.pop().map(|artist| {
-                rt.block_on(loop_until_ok(
-                    &get_artist_related_artists,
-                    client_ring.clone(),
-                    artist.id.clone(),
-                )).unwrap_or_else(|err| {
-                    error!(
-                        "Unexpected error in artist::get_artist_related_artists for {}: {}",
-                        artist.id,
-                        err,
-                    );
-                    vec![]
-                }).into_iter().map(|artist_full| {
-                    if !crawled.contains_key(&artist_full.id) &&
-                        !artist_full.genres.is_empty() {
-                            crawled.insert(artist_full.id.clone(), ());
-                            queue.push(artist_full);
-                        }
-                }).last();
-
-                let artist_id = artist.id.clone();
-                // Avoids extra last-minute inserts when limit reached
-                // Still not exact, may insert extra entries?
-                if num_processed.load(Ordering::SeqCst) < limit {
-                    sender.send(ArtistCsv::from(artist)).unwrap_or_else(|err| {
-                        error!(
-                            "Error sending {} through artist_crawl::artist_crawl sender: {}",
-                            artist_id,
-                            err,
-                        );
-                    });
-                    num_processed.fetch_add(1, Ordering::SeqCst);
-                    progress.inc(1);
-                }
-
-                sleep_period = 1;
-            }).unwrap_or_else(|_| {
-                if sleep_period > 8 {
-                    panic!("Timed out queue");
-                }
-
-                thread::sleep(Duration::from_secs(sleep_period));
-                sleep_period *= 2;
-            })
-        }
-    })
-}
-
-pub fn artist_crawl(
+fn crawl_related_artists(
     seeds: Vec<ArtistFull>,
     limit: usize,
     client_ring: Arc<RwLock<ClientRing>>,
     sender: Sender<ArtistCsv>,
-) -> thread::Result<CHashMap<String, ()>> {
-    let queue = Arc::new(SegQueue::new());
+) {
+    let mut rt = Runtime::new().expect("No tokio runtime");
+    
     let crawled = Arc::new(CHashMap::new());
-    seeds.into_iter().map(|seed| {
-        crawled.insert(seed.id.clone(), ());
-        queue.push(seed);
-    }).last();
-    let num_processed = Arc::new(AtomicUsize::new(0));
+    // let num_processed = Arc::new(AtomicUsize::new(0));
     let progress = Arc::new(ProgressBar::new(limit as u64));
+    let queue = Arc::new(AtomicRingQueue::with_capacity(limit));
+
     progress.set_style(
         ProgressStyle::default_bar()
             .template("[{elapsed_precise}] [{wide_bar}] {pos}/{len} ({percent}%)")
     );
-    
-    let num_threads = num_cpus::get();
-    info!("Using {} threads", num_threads);
+    seeds.into_iter().map(|seed| {
+        crawled.insert(seed.id.clone(), ());
+        queue.try_push(seed).unwrap_or(());
+    }).last();
 
-    let threads: Vec<thread::JoinHandle<()>> = (0..num_threads).map(|_| {
-        crawl_related_artists_thread(
-            queue.clone(),
-            crawled.clone(),
-            num_processed.clone(),
-            limit,
-            client_ring.clone(),
-            sender.clone(),
-            progress.clone(),
-        )
-    }).collect();
+    let initial_future: Box<Future<Item = (), Error = Box<SimpleError>>> = Box::new(future::ok(()));
+    // while num_processed.load(Ordering::SeqCst) < limit {
+    let full_future = (0..limit).fold(initial_future, |acc_future, index| {
+        let client_ring_clone = client_ring.clone();
+        let crawled_clone = crawled.clone();
+        // let num_processed_clone = num_processed.clone();
+        let progress_clone = progress.clone();
+        let queue_clone = queue.clone();
+        let sender_clone = sender.clone();
 
-    threads.into_iter().map(|join_handle| {
-        join_handle.join()
-    }).collect::<thread::Result<()>>().and_then(|_| {
-        progress.finish_with_message("Done crawling artists");
-        Ok(Arc::try_unwrap(crawled).expect("Error in unwrapping Arc for artist_crawl"))
-    })
+        Box::new(acc_future.join(future::ok(queue.pop()).and_then(|artist| {
+            let artist_id_clone = artist.id.clone();
+
+            loop_until_ok(
+                &get_artist_related_artists,
+                client_ring_clone,
+                artist.id.clone(),
+            ).map_err(move |err| SimpleError {
+                message: format!(
+                    "Unexpected error in artist::get_artist_related_artists for {}: {}",
+                    artist_id_clone,
+                    err,
+                ),
+            }.into()).map(move |vec| {
+                vec.into_iter().map(|artist_full| {
+                    if !crawled_clone.contains_key(&artist_full.id) &&
+                        !artist_full.genres.is_empty() {
+                            crawled_clone.insert(artist_full.id.clone(), ());
+                            queue_clone.try_push(artist_full).unwrap_or(());
+                        }
+                }).last();
+
+                let artist_id = artist.id.clone();
+                sender_clone.send(ArtistCsv::from(artist)).unwrap_or_else(|err| {
+                    error!(
+                        "Error sending {} through artist_crawl::artist_crawl sender: {}",
+                        artist_id,
+                        err,
+                    );
+                });
+                progress_clone.inc(1);
+            })
+        })).map(|_| {
+            ()
+        }))
+    });
+    // }
+
+    rt.block_on(full_future).unwrap_or_else(|err| {
+        error!("Error in running futures: {}", err);
+    });
+    progress.finish_with_message("Done crawling artists");
 }
 
 #[allow(dead_code)]
@@ -169,21 +142,23 @@ pub fn artist_crawl_main(
     let mut rt = Runtime::new().expect("No tokio runtime");
 
     let (artist_sender, artist_receiver) = channel::unbounded();
-    
+
     let seed_artists: Vec<ArtistFull> = lines_from_file("seed_artists.txt")
         .expect("Error in reading seed artists").into_iter().map(|name| {
-            rt.block_on(search_artists(client_ring.clone(), name))
-                .expect("Error in searching artists")
-                .items.drain(..).next().expect("No artists found")
+            rt.block_on(search_artists(client_ring.clone(), name).and_then(|mut vec| {
+                vec.items.drain(..).next().ok_or(SimpleError {
+                    message: "Empty seed artist".to_string(),
+                }.into())
+            })).expect("Error in searching artists")
         }).collect();
 
     let crawler_thread = thread::spawn(move || {
-        artist_crawl(
+        crawl_related_artists(
             seed_artists,
             limit,
             client_ring,
             artist_sender,
-        ).expect("Error in crawling artists");
+        )
     });
 
     let writer_thread = thread::spawn(move || {
@@ -198,4 +173,6 @@ pub fn artist_crawl_main(
     writer_thread.join().unwrap_or_else(|err| {
         error!("Error in artist writer thread: {:?}", err);
     });
+
+    // info!("fdjkas");
 }
